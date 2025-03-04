@@ -14,6 +14,8 @@ import requests
 import pendulum
 from singer.bookmarks import write_bookmark, get_bookmark
 
+LOGGER = singer.get_logger()
+
 class SentryAuthentication(requests.auth.AuthBase):
     def __init__(self, api_token: str):
         self.api_token = api_token
@@ -229,53 +231,39 @@ class SentrySync:
         #extraction_time = singer.utils.now()
         #self.state = singer.write_bookmark(self.state, 'teams', 'dateCreated', singer.utils.strftime(extraction_time))
 
-    async def sync_releases(self, schema, period=None):
-        """Releases per project."""
-        stream = "releases"
-        loop = asyncio.get_event_loop()
-
+    async def sync_release(self, schema, stream="release"):
+        """Sync release data from Sentry API."""
+        LOGGER.info(f"Syncing {stream}")
+        
         singer.write_schema(stream, schema.to_dict(), ["version"])
         extraction_time = singer.utils.now()
+        
+        # Use existing projects property
         if self.projects:
             for project in self.projects:
-                releases = await loop.run_in_executor(None, self.client.releases, project['id'], self.state)
+                project_id = project.get("id")
+                project_slug = project.get("slug")
+                
+                LOGGER.info(f"Fetching releases for project {project_slug}")
+                
+                # Use the existing releases method in the client
+                releases = await asyncio.get_event_loop().run_in_executor(
+                    None, self.client.releases, project_id, self.state
+                )
+                
                 if releases:
                     for release in releases:
-                        singer.write_record(stream, release)
-            self.state = singer.write_bookmark(self.state, 'releases', 'start', singer.utils.strftime(extraction_time))
-
-    async def sync_release(self, schema, stream):
-        """Sync releases data from Sentry API."""
-        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
-            self.write_schema(stream, schema)
-            headers = {
-                "Authorization": f"Bearer {self.config['auth_token']}",
-                "Content-Type": "application/json"
-            }
-            
-            # Get list of all organizations/projects
-            organization_projects = await self.fetch_organization_projects(headers)
-            
-            for org, projects in organization_projects.items():
-                for project in projects:
-                    project_id = project['id']
-                    project_slug = project['slug']
-                    
-                    url = f"{self.api_url}/projects/{org}/{project_slug}/releases/"
-                    
-                    # Fetch and process releases for this project
-                    releases = await self.fetch_data(url, headers)
-                    
-                    with singer.metrics.record_counter(stream) as counter:
-                        for release in releases:
-                            # Add project context to the release data
+                        # Add project context if not present
+                        if 'project_id' not in release:
                             release['project_id'] = project_id
+                        if 'project_slug' not in release:
                             release['project_slug'] = project_slug
-                            release['organization'] = org
-                            
-                            # Write the release record
-                            singer.write_record(stream, release)
-                            counter.increment()
+                        
+                        # Write the record
+                        singer.write_record(stream, release)
+                        
+            # Update state with extraction time
+            self.state = singer.write_bookmark(self.state, stream, 'start', singer.utils.strftime(extraction_time))
 
     async def sync_project_detail(self, schema, stream):
         """Sync detailed project information from Sentry API."""

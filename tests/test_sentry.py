@@ -139,11 +139,11 @@ class MyGreatClassTestCase(unittest.TestCase):
             with mock.patch('tap_sentry.SentryClient.releases', return_value=[record_value]):
                 dataSync = SentrySync(self.client)
                 schema = load_file('release.json', 'tap_sentry/schemas')
-                resp = dataSync.sync_releases(Schema(schema))
+                resp = dataSync.sync_release(Schema(schema))
                 with mock.patch('singer.write_record') as patching:
                     task = asyncio.gather(resp)
                     loop.run_until_complete(task)
-                    patching.assert_called_with('releases', record_value)
+                    patching.assert_called_with('release', record_value)
 
 
 if __name__ == '__main__':

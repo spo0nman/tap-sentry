@@ -13,8 +13,6 @@ import singer
 import requests
 import pendulum
 from singer.bookmarks import write_bookmark, get_bookmark
-from pendulum import datetime, period
-
 
 class SentryAuthentication(requests.auth.AuthBase):
     def __init__(self, api_token: str):
@@ -112,6 +110,23 @@ class SentryClient:
         except:
             return None
 
+    def releases(self, project_id, state):
+        try:
+            bookmark = get_bookmark(state, "releases", "start")
+            query = f"/organizations/split-software/releases/?project={project_id}"
+            if bookmark:
+                query += "&start=" + urllib.parse.quote(bookmark) + "&utc=true" + '&end=' + urllib.parse.quote(singer.utils.strftime(singer.utils.now()))
+            response = self._get(query)
+            releases = response.json()
+            url = response.url
+            while (response.links is not None and response.links.__len__() > 0 and response.links['next']['results'] == 'true'):
+                url = response.links['next']['url']
+                response = self.session.get(url)
+                releases += response.json()
+            return releases
+        except:
+            return None
+
 
 class SentrySync:
     def __init__(self, client: SentryClient, state={}):
@@ -136,7 +151,7 @@ class SentrySync:
         func = getattr(self, f"sync_{stream}")
         return func(schema)
 
-    async def sync_issues(self, schema, period: pendulum.period = None):
+    async def sync_issues(self, schema, period=None):
         """Issues per project."""
         stream = "issues"
         loop = asyncio.get_event_loop()
@@ -162,7 +177,7 @@ class SentrySync:
                 singer.write_record(stream, project)
 
 
-    async  def sync_events(self, schema, period: pendulum.period = None):
+    async  def sync_events(self, schema, period=None):
         """Events per project."""
         stream = "events"
         loop = asyncio.get_event_loop()
@@ -200,3 +215,18 @@ class SentrySync:
                 singer.write_record(stream, team)
         #extraction_time = singer.utils.now()
         #self.state = singer.write_bookmark(self.state, 'teams', 'dateCreated', singer.utils.strftime(extraction_time))
+
+    async def sync_releases(self, schema, period=None):
+        """Releases per project."""
+        stream = "releases"
+        loop = asyncio.get_event_loop()
+
+        singer.write_schema(stream, schema.to_dict(), ["version"])
+        extraction_time = singer.utils.now()
+        if self.projects:
+            for project in self.projects:
+                releases = await loop.run_in_executor(None, self.client.releases, project['id'], self.state)
+                if releases:
+                    for release in releases:
+                        singer.write_record(stream, release)
+            self.state = singer.write_bookmark(self.state, 'releases', 'start', singer.utils.strftime(extraction_time))

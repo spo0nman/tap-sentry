@@ -125,6 +125,26 @@ class MyGreatClassTestCase(unittest.TestCase):
                 loop.run_until_complete(task)
                 patching.assert_called_with('users', record_value)
 
+    @requests_mock.mock()
+    def test_releases(self, m):
+        record_value = load_file_current('release_output.json', 'data_test')
+        m.get('https://sentry.io/api/0//organizations/split-software/releases/?project=1', json=[record_value])
+        self.assertEqual(self.client.releases(1, {}), [record_value])
+
+    @requests_mock.mock()
+    def test_sync_releases(self, m):
+        loop = asyncio.get_event_loop()
+        record_value = load_file_current('release_output.json', 'data_test')
+        with mock.patch.object(SentryClient, 'projects', return_value=[{"id":1}]):
+            with mock.patch('tap_sentry.SentryClient.releases', return_value=[record_value]):
+                dataSync = SentrySync(self.client)
+                schema = load_file('release.json', 'tap_sentry/schemas')
+                resp = dataSync.sync_releases(Schema(schema))
+                with mock.patch('singer.write_record') as patching:
+                    task = asyncio.gather(resp)
+                    loop.run_until_complete(task)
+                    patching.assert_called_with('releases', record_value)
+
 
 if __name__ == '__main__':
     unittest.main()

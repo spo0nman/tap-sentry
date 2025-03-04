@@ -2,13 +2,15 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+.venv
 # C extensions
 *.so
 
 # Distribution / packaging
 .Python
 env/
+tap_sentry_venv/
+tap_sentry.egg-info/
 build/
 develop-eggs/
 dist/

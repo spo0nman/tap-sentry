@@ -86,6 +86,7 @@ def create_sync_tasks(config, state, catalog):
     return asyncio.gather(*sync_tasks)
 
 def sync(config, state, catalog):
+    """Sync data from tap source."""
     # Create client and sync instance
     auth = SentryAuthentication(config["api_token"])
     client = SentryClient(auth)
@@ -95,7 +96,7 @@ def sync(config, state, catalog):
     selected_stream_ids = get_selected_streams(catalog)
     LOGGER.info(f"Selected streams: {selected_stream_ids}")
     
-    # Process each stream
+    # Create an event loop
     loop = asyncio.get_event_loop()
     
     try:
@@ -107,18 +108,11 @@ def sync(config, state, catalog):
                 
                 LOGGER.info(f"Processing stream: {stream_id}")
                 
-                # Check if sync method exists
-                method_name = f"sync_{stream_id}"
-                if hasattr(sync_instance, method_name):
-                    method = getattr(sync_instance, method_name)
-                    
-                    # Run the sync method (all methods are async)
-                    LOGGER.info(f"Running {method_name}")
-                    task = method(schema)
-                    loop.run_until_complete(task)
-                else:
-                    LOGGER.warning(f"Method {method_name} not found in SentrySync class")
+                # Use the sync method we defined
+                task = sync_instance.sync(stream_id, schema)
+                loop.run_until_complete(task)
     finally:
+        # Clean up resources
         loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
     

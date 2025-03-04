@@ -41,6 +41,27 @@ tap-sentry --config config.json --catalog catalog.json
 | Teams | id | Team information |
 | Users | id | User information |
 | Releases | version | Release information |
+| Project Detail | id | Detailed project information including settings, statistics, and configurations |
+| Release | id | Release information including versions, commits, and deployments |
+
+## Stream Details
+
+### project_detail
+
+The project_detail stream provides detailed information about each Sentry project. Unlike the basic projects stream, this includes comprehensive details about project settings, configurations, and statistics.
+
+**Note**: This stream is processed in a non-async manner due to the detailed nature of the API calls.
+
+### release
+
+The release stream provides information about releases in your Sentry projects, including:
+- Version information
+- Commit data
+- Deployment status
+- Project associations
+- Release statistics
+
+**Note**: This stream is processed in a non-async manner.
 
 ## Replication
 
@@ -106,6 +127,8 @@ plugins:
         - teams.*
         - users.*
         - releases.*
+        - project_detail.*
+        - release.*
 ```
 
 ## Limitations

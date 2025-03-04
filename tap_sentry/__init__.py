@@ -75,10 +75,14 @@ def create_sync_tasks(config, state, catalog):
     sync = SentrySync(client, state)
 
     selected_stream_ids = get_selected_streams(catalog)
-    sync_tasks = (sync.sync(stream.tap_stream_id, stream.schema)
-                  for stream in catalog.streams
-                  if stream.tap_stream_id in selected_stream_ids)
-
+    sync_tasks = []
+    
+    for stream in catalog.streams:
+        stream_id = stream.tap_stream_id
+        # Only include streams that have a matching sync method
+        if stream_id in selected_stream_ids and hasattr(sync, f"sync_{stream_id}"):
+            sync_tasks.append(sync.sync(stream_id, stream.schema))
+    
     return asyncio.gather(*sync_tasks)
 
 def sync(config, state, catalog):
@@ -87,21 +91,51 @@ def sync(config, state, catalog):
     client = SentryClient(auth)
     sync_instance = SentrySync(client, state)
     
+    # Log available sync methods for debugging
+    sync_methods = [method for method in dir(sync_instance) if method.startswith('sync_')]
+    LOGGER.info(f"Available sync methods: {sync_methods}")
+    
+    # Log selected streams
+    selected_stream_ids = get_selected_streams(catalog)
+    LOGGER.info(f"Selected streams: {selected_stream_ids}")
+    
+    # Group streams into async and non-async categories
+    async_streams = ['projects', 'issues', 'events', 'teams']
+    non_async_streams = ['project_detail', 'release']
+    
+    # Filter selected streams
+    selected_async_streams = [s for s in selected_stream_ids if s in async_streams]
+    selected_non_async_streams = [s for s in selected_stream_ids if s in non_async_streams]
+    
+    LOGGER.info(f"Processing async streams: {selected_async_streams}")
+    LOGGER.info(f"Processing non-async streams: {selected_non_async_streams}")
+    
     # Run async tasks with event loop
     loop = asyncio.get_event_loop()
     try:
-        tasks = create_sync_tasks(config, state, catalog)
-        loop.run_until_complete(tasks)
+        tasks = []
+        for stream in catalog.streams:
+            if stream.tap_stream_id in selected_async_streams:
+                LOGGER.info(f"Adding async stream: {stream.tap_stream_id}")
+                tasks.append(sync_instance.sync(stream.tap_stream_id, stream.schema))
+        
+        if tasks:
+            loop.run_until_complete(asyncio.gather(*tasks))
     finally:
         loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
 
-    # Handle project_detail separately
-    selected_stream_ids = get_selected_streams(catalog)
+    # Handle non-async streams separately
     for stream in catalog.streams:
-        if stream.tap_stream_id == 'project_detail' and stream.tap_stream_id in selected_stream_ids:
-            # Run project_detail sync
-            sync_instance.sync_project_detail(stream.schema, stream.tap_stream_id)
+        if stream.tap_stream_id in selected_non_async_streams:
+            LOGGER.info(f"Processing non-async stream: {stream.tap_stream_id}")
+            method_name = f"sync_{stream.tap_stream_id}"
+            if hasattr(sync_instance, method_name):
+                method = getattr(sync_instance, method_name)
+                LOGGER.info(f"Calling {method_name}")
+                method(stream.schema, stream.tap_stream_id)
+            else:
+                LOGGER.warning(f"Method {method_name} not found in SentrySync class")
 
 @utils.handle_top_exception(LOGGER)
 def main():

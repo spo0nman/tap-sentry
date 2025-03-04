@@ -3,29 +3,26 @@ send_anonymous_usage_stats: true
 project_id: tap-sentry
 plugins:
   extractors:
-    - name: tap-sentry
-      namespace: tap_sentry
-      pip_url: tap-sentry
-      executable: tap-sentry
+    - name: "tap-sentry"
+      namespace: "tap_sentry"
+      pip_url: "-e ."
       capabilities:
         - catalog
         - discover
         - state
       settings:
-        - name: auth_token
+        - name: api_token
           kind: password
-          label: Sentry API Token
-          description: Bearer token for Sentry API authentication
-          protected: true
+          description: Sentry API token
+          label: API Token
         - name: start_date
-          kind: string
+          kind: date_iso8601
+          description: Start date for data extraction
           label: Start Date
-          description: The earliest record date to sync (ISO format)
-          value: '2020-01-01T00:00:00Z'
       select:
         - projects.*
-        - issues.*
-        - events.*
         - teams.*
-        - users.*
-        - releases.* 
+        - events.*
+        - issues.*
+        - project_detail.*
+        - release.* 

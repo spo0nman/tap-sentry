@@ -280,11 +280,25 @@ class SentrySync:
         with singer.metrics.job_timer(job_type=f"sync_{stream}"):
             singer.write_schema(stream, schema.to_dict(), ["id"])
             
-            # Get projects directly from the client
-            if not self.projects:
-                self.projects = self.client.projects()
+            # More robust handling of None projects
+            projects_to_process = []
             
-            for project in self.projects:
+            # Try to get projects if self.projects is None
+            if not self.projects:
+                LOGGER.warning("No projects found to sync details for")
+                try:
+                    self.projects = self.client.projects()
+                except Exception as e:
+                    LOGGER.error(f"Error fetching projects: {e}")
+            
+            # Always use a list (even if empty) to avoid None iteration errors
+            if self.projects:
+                projects_to_process = self.projects
+            else:
+                LOGGER.warning("No projects available to process")
+            
+            # Now iterate over the list (which might be empty, but never None)
+            for project in projects_to_process:
                 project_id = project.get("id")
                 project_slug = project.get("slug")
                 org_slug = project.get("organization", {}).get("slug", "split-software")

@@ -162,9 +162,19 @@ class SentrySync:
         singer.write_state(value)
         self._state = value
 
-    def sync(self, stream, schema):
-        func = getattr(self, f"sync_{stream}")
-        return func(schema)
+    async def sync(self, stream, schema):
+        """Generic sync method that routes to specific sync methods."""
+        LOGGER.info(f"Starting sync for {stream}")
+        
+        # Get the appropriate sync method for this stream
+        sync_method_name = f"sync_{stream}"
+        
+        if hasattr(self, sync_method_name):
+            sync_method = getattr(self, sync_method_name)
+            return await sync_method(schema)
+        else:
+            LOGGER.warning(f"No sync method found for {stream}")
+            return None
 
     async def sync_issues(self, schema, period=None):
         """Issues per project."""

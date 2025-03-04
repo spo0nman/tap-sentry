@@ -127,6 +127,19 @@ class SentryClient:
         except:
             return None
 
+    async def fetch_single_data(self, url, headers):
+        """Fetch a single object from the Sentry API."""
+        try:
+            async with self.session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    self.logger.error(f"Error fetching data from {url}: {response.status}")
+                    return None
+        except Exception as e:
+            self.logger.error(f"Exception fetching data from {url}: {str(e)}")
+            return None
+
 
 class SentrySync:
     def __init__(self, client: SentryClient, state={}):
@@ -230,3 +243,66 @@ class SentrySync:
                     for release in releases:
                         singer.write_record(stream, release)
             self.state = singer.write_bookmark(self.state, 'releases', 'start', singer.utils.strftime(extraction_time))
+
+    async def sync_release(self, schema, stream):
+        """Sync releases data from Sentry API."""
+        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
+            self.write_schema(stream, schema)
+            headers = {
+                "Authorization": f"Bearer {self.config['auth_token']}",
+                "Content-Type": "application/json"
+            }
+            
+            # Get list of all organizations/projects
+            organization_projects = await self.fetch_organization_projects(headers)
+            
+            for org, projects in organization_projects.items():
+                for project in projects:
+                    project_id = project['id']
+                    project_slug = project['slug']
+                    
+                    url = f"{self.api_url}/projects/{org}/{project_slug}/releases/"
+                    
+                    # Fetch and process releases for this project
+                    releases = await self.fetch_data(url, headers)
+                    
+                    with singer.metrics.record_counter(stream) as counter:
+                        for release in releases:
+                            # Add project context to the release data
+                            release['project_id'] = project_id
+                            release['project_slug'] = project_slug
+                            release['organization'] = org
+                            
+                            # Write the release record
+                            singer.write_record(stream, release)
+                            counter.increment()
+
+    async def sync_project_detail(self, schema, stream):
+        """Sync detailed project information from Sentry API."""
+        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
+            self.write_schema(stream, schema)
+            headers = {
+                "Authorization": f"Bearer {self.config['auth_token']}",
+                "Content-Type": "application/json"
+            }
+            
+            # Get list of all organizations/projects
+            organization_projects = await self.fetch_organization_projects(headers)
+            
+            for org, projects in organization_projects.items():
+                for project in projects:
+                    project_slug = project['slug']
+                    
+                    # Fetch detailed project information
+                    url = f"{self.api_url}/projects/{org}/{project_slug}/"
+                    
+                    # Get detailed project data
+                    project_detail = await self.fetch_single_data(url, headers)
+                    
+                    if project_detail:
+                        # Add organization context
+                        project_detail['organization_slug'] = org
+                        
+                        # Write the project detail record
+                        singer.write_record(stream, project_detail)
+                        singer.metrics.record_counter(stream).increment()

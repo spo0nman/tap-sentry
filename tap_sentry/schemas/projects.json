@@ -1,160 +1,154 @@
 {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
   "properties": {
-    "slug": {
-      "type": [
-        "null",
-        "string"
-      ]
+    "avatar": {
+      "type": ["object", "null"],
+      "properties": {
+        "avatarType": {
+          "type": ["string", "null"]
+        },
+        "avatarUuid": {
+          "type": ["null", "string"]
+        },
+        "avatarUrl": {
+          "type": ["null", "string"]
+        }
+      }
     },
-    "name": {
-      "type": [
-        "null",
-        "string"
-      ]
+    "color": {
+      "type": ["string", "null"]
+    },
+    "dateCreated": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "features": {
+      "type": ["array", "null"],
+      "items": {
+        "type": ["string", "null"]
+      }
+    },
+    "firstEvent": {
+      "type": ["null", "string"]
     },
     "hasAccess": {
-      "type": [
-        "null",
-        "boolean"
-      ]
+      "type": ["boolean", "null"]
     },
-    "environments":{
-      "type": [
-        "null",
-        "array"
-      ]
+    "id": {
+      "type": ["string", "null"]
     },
-    "teams": {
-      "type": [
-        "null",
-        "array"
-      ],
-      "items": {
-        "properties": {
-          "id": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "name": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "slug": {
-            "type": [
-              "null",
-              "string"
-            ]
+    "isBookmarked": {
+      "type": ["boolean", "null"]
+    },
+    "isInternal": {
+      "type": ["boolean", "null"]
+    },
+    "isMember": {
+      "type": ["boolean", "null"]
+    },
+    "isPublic": {
+      "type": ["boolean", "null"]
+    },
+    "name": {
+      "type": ["string", "null"]
+    },
+    "organization": {
+      "type": ["object", "null"],
+      "properties": {
+        "avatar": {
+          "type": ["object", "null"],
+          "properties": {
+            "avatarType": {
+              "type": ["string", "null"]
+            },
+            "avatarUuid": {
+              "type": ["null", "string"]
+            },
+            "avatarUrl": {
+              "type": ["string", "null"]
+            }
           }
         },
-        "type": [
-          "null",
-          "object"
-        ]
+        "dateCreated": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "id": {
+          "type": ["string", "null"]
+        },
+        "isEarlyAdopter": {
+          "type": ["boolean", "null"]
+        },
+        "hasAuthProvider": {
+          "type": ["boolean", "null"]
+        },
+        "links": {
+          "type": ["object", "null"],
+          "properties": {
+            "organizationUrl": {
+              "type": ["string", "null"]
+            },
+            "regionUrl": {
+              "type": ["string", "null"]
+            }
+          }
+        },
+        "name": {
+          "type": ["string", "null"]
+        },
+        "require2FA": {
+          "type": ["boolean", "null"]
+        },
+        "slug": {
+          "type": ["string", "null"]
+        },
+        "status": {
+          "type": ["object", "null"],
+          "properties": {
+            "id": {
+              "type": ["string", "null"]
+            },
+            "name": {
+              "type": ["string", "null"]
+            }
+          }
+        },
+        "requireEmailVerification": {
+          "type": ["boolean", "null"]
+        },
+        "features": {
+          "type": ["array", "null"],
+          "items": {
+            "type": ["string", "null"]
+          }
+        }
       }
     },
     "platform": {
-      "type": [
-        "null",
-        "string"
-      ]
+      "type": ["null", "string"]
     },
-    "firstEvent": {
-      "type": [
-        "null",
-        "string"
-      ],
-      "format":"date-time"
+    "slug": {
+      "type": ["string", "null"]
     },
-    "latestRelease": {
-      "type": [
-        "null",
-        "object"
-      ],
-      "properties": {
-        "versions": {
-           "type": [
-             "null",
-             "string"
-           ]
-        }
+    "status": {
+      "type": ["string", "null"],
+      "enum": ["active", "disabled", "pending_deletion", "deletion_in_progress"]
+    },
+    "access": {
+      "type": ["null", "array"],
+      "items": {
+        "type": ["null", "string"]
       }
     },
-    "isMember": {
-      "type": [
-        "null",
-        "boolean"
-      ]
-    },
-    "team": {
-      "type": [
-        "null",
-        "object"
-      ],
-      "properties": {
-        "id": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "name": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "slug": {
-          "type": [
-            "null",
-            "string"
-          ]
-        }
-      }
-    },
-    "platforms": {
-      "type": [
-        "null",
-        "array"
-      ]
-    },
-    "dateCreated": {
-      "type": [
-        "null",
-        "string"
-      ],
-      "format":"date-time"
-    },
-    "isBookmarked": {
-      "type": [
-        "null",
-        "boolean"
-      ]
-    },
-    "id": {
-      "type": [
-        "null",
-        "string"
-      ]
-    },
-    "latestDeploys": {
-      "type": [
-        "null",
-        "object"
-      ]
-    },
-    "features": {
-      "type": [
-        "null",
-        "array"
-      ]
-    }
-  },
-  "type": [
-    "null",
-    "object"
-  ]
+    "firstTransactionEvent": { "type": ["null", "boolean"] },
+    "hasMonitors": { "type": ["null", "boolean"] },
+    "hasProfiles": { "type": ["null", "boolean"] },
+    "hasReplays": { "type": ["null", "boolean"] },
+    "hasSessions": { "type": ["null", "boolean"] },
+    "hasFeedbacks": { "type": ["null", "boolean"] },
+    "hasNewFeedbacks": { "type": ["null", "boolean"] },
+    "hasCustomMetrics": { "type": ["null", "boolean"] },
+    "hasMinifiedStackTrace": { "type": ["null", "boolean"] }
+  }
 }

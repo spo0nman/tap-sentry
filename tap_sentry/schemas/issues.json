@@ -1,198 +1,148 @@
 {
-  "type":[
-    "null",
-    "object"
-  ],
-  "properties":{
-    "platform":{
-      "type":[
-        "null",
-        "string"
-      ]
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "annotations": {
+      "type": ["array", "null"],
+      "items": {
+        "type": ["string", "null"]
+      }
     },
-    "lastSeen":{
-      "type":[
-        "null",
-        "string"
-      ],
-      "format":"date-time"
+    "assignedTo": {
+      "type": ["null", "object"]
     },
-    "numComments":{
-      "type":[
-        "null",
-        "integer"
-      ]
+    "count": {
+      "type": ["string", "null"]
     },
-    "userCount":{
-      "type":[
-        "null",
-        "integer"
-      ]
+    "culprit": {
+      "type": ["string", "null"]
     },
-    "stats":{
-      "type":[
-        "null",
-        "object"
-      ]
+    "firstSeen": {
+      "type": ["string", "null"]
     },
-    "culprit":{
-      "type":[
-        "null",
-        "string"
-      ]
+    "hasSeen": {
+      "type": ["boolean", "null"]
     },
-    "title":{
-      "type":[
-        "null",
-        "string"
-      ]
+    "id": {
+      "type": ["string", "null"]
     },
-    "id":{
-      "type":[
-        "null",
-        "string"
-      ]
+    "isBookmarked": {
+      "type": ["boolean", "null"]
     },
-    "assignedTo":{
-      "type":[
-        "null",
-        "string"
-      ]
+    "isPublic": {
+      "type": ["boolean", "null"]
     },
-    "logger":{
-      "type":[
-        "null",
-        "string"
-      ]
+    "isSubscribed": {
+      "type": ["boolean", "null"]
     },
-    "type":{
-      "type":[
-        "null",
-        "string"
-      ]
+    "lastSeen": {
+      "type": ["string", "null"]
     },
-    "annotations":{
-      "type":[
-        "null",
-        "array"
-      ]
+    "level": {
+      "type": ["string", "null"]
     },
-    "metadata":{
-      "type":[
-        "null",
-        "object"
-      ]
+    "logger": {
+      "type": ["null", "string"]
     },
-    "status":{
-      "type":[
-        "null",
-        "string"
-      ]
-    },
-    "subscriptionDetails":{
-      "type":[
-        "null",
-        "string"
-      ]
-    },
-    "isPublic":{
-      "type":[
-        "null",
-        "boolean"
-      ]
-    },
-    "hasSeen":{
-      "type":[
-        "null",
-        "boolean"
-      ]
-    },
-    "shortId":{
-      "type":[
-        "null",
-        "string"
-      ]
-    },
-    "shareId":{
-      "type":[
-        "null",
-        "string"
-      ]
-    },
-    "firstSeen":{
-      "type":[
-        "null",
-        "string"
-      ],
-      "format":"date-time"
-    },
-    "count":{
-      "type":[
-        "null",
-        "string"
-      ]
-    },
-    "permalink":{
-      "type":[
-        "null",
-        "string"
-      ]
-    },
-    "level":{
-      "type":[
-        "null",
-        "string"
-      ]
-    },
-    "isSubscribed":{
-      "type":[
-        "null",
-        "boolean"
-      ]
-    },
-    "isBookmarked":{
-      "type":[
-        "null",
-        "boolean"
-      ]
-    },
-    "project":{
-      "type":[
-        "null",
-        "object"
-      ],
-      "properties":{
-        "platform":{
-          "type":[
-            "null",
-            "string"
-          ]
+    "metadata": {
+      "anyOf": [
+        {
+          "type": ["object", "null"],
+          "properties": {
+            "title": {
+              "type": ["string", "null"]
+            }
+          }
         },
-        "slug":{
-          "type":[
-            "null",
-            "string"
-          ]
+        {
+          "type": ["object", "null"],
+          "properties": {
+            "filename": {
+              "type": ["string", "null"]
+            },
+            "type": {
+              "type": ["string", "null"]
+            },
+            "value": {
+              "type": ["string", "null"]
+            }
+          }
+        }
+      ]
+    },
+    "numComments": {
+      "type": ["integer", "null"]
+    },
+    "permalink": {
+      "type": ["string", "null"]
+    },
+    "project": {
+      "type": ["object", "null"],
+      "properties": {
+        "id": {
+          "type": ["string", "null"]
         },
-        "id":{
-          "type":[
-            "null",
-            "string"
-          ]
+        "name": {
+          "type": ["string", "null"]
         },
-        "name":{
-          "type":[
-            "null",
-            "string"
-          ]
+        "slug": {
+          "type": ["string", "null"]
         }
       }
     },
-    "statusDetails":{
-      "type":[
-        "null",
-        "object"
-      ]
+    "shareId": {
+      "type": ["null", "string"]
+    },
+    "shortId": {
+      "type": ["string", "null"]
+    },
+    "stats": {
+      "type": ["object", "null"],
+      "properties": {
+        "24h": {
+          "type": ["array", "null"],
+          "items": {
+            "type": ["array", "null"],
+            "items": {
+              "type": ["number", "null"]
+            }
+          }
+        }
+      }
+    },
+    "status": {
+      "type": ["string", "null"],
+      "enum": ["resolved", "unresolved", "ignored"]
+    },
+    "statusDetails": {
+      "type": ["object", "null"]
+    },
+    "subscriptionDetails": {
+      "type": ["null", "object"]
+    },
+    "title": {
+      "type": ["string", "null"]
+    },
+    "type": {
+      "type": ["string", "null"]
+    },
+    "userCount": {
+      "type": ["integer", "null"]
+    },
+    "isUnhandled": {
+      "type": ["null", "boolean"]
+    },
+    "issueCategory": {
+      "type": ["null", "string"]
+    },
+    "issueType": {
+      "type": ["null", "string"]
+    },
+    "platform": {
+      "type": ["null", "string"]
+    },
+    "substatus": {
+      "type": ["null", "string"]
     }
   }
 }

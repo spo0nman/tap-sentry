@@ -25,30 +25,34 @@ def load_schemas():
         file_raw = filename.replace('.json', '')
         with open(path) as file:
             schemas[file_raw] = json.load(file)
-
+            
+    # You might want to add some debug logging here to verify project_detail is loaded
+    # logger.debug(f"Loaded schemas: {list(schemas.keys())}")
+    
     return schemas
 
 def discover():
     raw_schemas = load_schemas()
     streams = []
-
+    
+    # Make sure project_detail is in the schemas that are loaded
+    
     for schema_name, schema in raw_schemas.items():
-
-        # TODO: populate any metadata and stream's key properties here..
+        # Create metadata and add to catalog
         stream_metadata = []
-        stream_key_properties = []
-
-        # create and add catalog entry
+        key_properties = []
+        
+        # Create catalog entry
         catalog_entry = {
             'stream': schema_name,
             'tap_stream_id': schema_name,
             'schema': schema,
-            'metadata' : [],
-            'key_properties': []
+            'metadata': stream_metadata,
+            'key_properties': key_properties
         }
         streams.append(catalog_entry)
-
-    return {'streams': streams}
+        
+    return Catalog(streams)
 
 def get_selected_streams(catalog):
     '''
@@ -77,7 +81,13 @@ def create_sync_tasks(config, state, catalog):
 
     return asyncio.gather(*sync_tasks)
 
-def  sync(config, state, catalog):
+def sync(config, state, catalog):
+    # Create client and sync instance
+    auth = SentryAuthentication(config["api_token"])
+    client = SentryClient(auth)
+    sync_instance = SentrySync(client, state)
+    
+    # Run async tasks with event loop
     loop = asyncio.get_event_loop()
     try:
         tasks = create_sync_tasks(config, state, catalog)
@@ -85,6 +95,13 @@ def  sync(config, state, catalog):
     finally:
         loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
+
+    # Handle project_detail separately
+    selected_stream_ids = get_selected_streams(catalog)
+    for stream in catalog.streams:
+        if stream.tap_stream_id == 'project_detail' and stream.tap_stream_id in selected_stream_ids:
+            # Run project_detail sync
+            sync_instance.sync_project_detail(stream.schema, stream.tap_stream_id)
 
 @utils.handle_top_exception(LOGGER)
 def main():

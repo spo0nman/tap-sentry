@@ -126,7 +126,9 @@ def main():
     # If discover flag was passed, run discovery mode and dump output to stdout
     if args.discover:
         catalog = discover()
-        print(json.dumps(catalog, indent=2))
+        # Convert the Catalog object to dict before serializing to JSON
+        catalog_dict = catalog.to_dict()
+        print(json.dumps(catalog_dict, indent=2))
     # Otherwise run in sync mode
     else:
         if args.catalog:

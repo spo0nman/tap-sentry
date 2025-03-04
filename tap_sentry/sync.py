@@ -171,7 +171,7 @@ class SentrySync:
         
         if hasattr(self, sync_method_name):
             sync_method = getattr(self, sync_method_name)
-            return await sync_method(schema)
+            return await sync_method(schema, stream)
         else:
             LOGGER.warning(f"No sync method found for {stream}")
             return None

@@ -176,76 +176,119 @@ class SentrySync:
             LOGGER.warning(f"No sync method found for {stream}")
             return None
 
-    async def sync_issues(self, schema, period=None):
-        """Issues per project."""
-        stream = "issues"
-        loop = asyncio.get_event_loop()
+    async def sync_issues(self, schema, stream):
+        """Sync issues from Sentry API."""
+        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
+            # Fix schema format
+            schema_dict = self._get_formatted_schema(schema)
+            singer.write_schema(stream, schema_dict, ["id"])
+            
+            extraction_time = singer.utils.now()
+            if self.projects:
+                for project in self.projects:
+                    issues = await asyncio.get_event_loop().run_in_executor(None, self.client.issues, project['id'], self.state)
+                    if (issues):
+                        for issue in issues:
+                            singer.write_record(stream, issue)
 
-        singer.write_schema(stream, schema.to_dict(), ["id"])
-        extraction_time = singer.utils.now()
-        if self.projects:
-            for project in self.projects:
-                issues = await loop.run_in_executor(None, self.client.issues, project['id'], self.state)
-                if (issues):
-                    for issue in issues:
-                        singer.write_record(stream, issue)
+            self.state = singer.write_bookmark(self.state, 'issues', 'start', singer.utils.strftime(extraction_time))
 
-        self.state = singer.write_bookmark(self.state, 'issues', 'start', singer.utils.strftime(extraction_time))
+    async def sync_projects(self, schema, stream):
+        """Sync projects."""
+        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
+            # Fix schema format
+            schema_dict = self._get_formatted_schema(schema)
+            singer.write_schema(stream, schema_dict, ["id"])
+            
+            extraction_time = singer.utils.now()
+            if self.projects:
+                for project in self.projects:
+                    singer.write_record(stream, project)
 
-    async def sync_projects(self, schema):
-        """Issues per project."""
-        stream = "projects"
-        loop = asyncio.get_event_loop()
-        singer.write_schema('projects', schema.to_dict(), ["id"])
-        if self.projects:
-            for project in self.projects:
-                singer.write_record(stream, project)
+            self.state = singer.write_bookmark(self.state, 'projects', 'start', singer.utils.strftime(extraction_time))
 
+    async def sync_events(self, schema, stream):
+        """Sync events from Sentry API."""
+        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
+            # Fix schema format
+            schema_dict = self._get_formatted_schema(schema)
+            singer.write_schema(stream, schema_dict, ["eventID"])
+            
+            extraction_time = singer.utils.now()
+            if self.projects:
+                # Create a new event loop for async operations
+                loop = asyncio.get_event_loop()
+                
+                projects_to_process = self.projects
+                for project in projects_to_process:
+                    LOGGER.info(f"Syncing events for project {project.get('slug', project.get('id'))}")
+                    try:
+                        events = await loop.run_in_executor(None, self.client.events, project['id'], self.state)
+                        if events:
+                            for event in events:
+                                singer.write_record(stream, event)
+                    except Exception as e:
+                        LOGGER.error(f"Error syncing events for project {project.get('slug', project.get('id'))}: {e}")
+                
+                self.state = singer.write_bookmark(self.state, 'events', 'start', singer.utils.strftime(extraction_time))
 
-    async  def sync_events(self, schema, period=None):
-        """Events per project."""
-        stream = "events"
-        loop = asyncio.get_event_loop()
+    async def sync_users(self, schema, stream):
+        """Sync users from Sentry API."""
+        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
+            # Fix schema format
+            schema_dict = self._get_formatted_schema(schema)
+            singer.write_schema(stream, schema_dict, ["id"])
+            
+            # Get users data from the client
+            LOGGER.info(f"Fetching users data")
+            try:
+                users = await asyncio.get_event_loop().run_in_executor(
+                    None, self.client.users, self.state
+                )
+                
+                if users:
+                    LOGGER.info(f"Found {len(users)} users to sync")
+                    # Process each user
+                    for user in users:
+                        singer.write_record(stream, user)
+                        singer.metrics.record_counter(stream).increment()
+                else:
+                    LOGGER.warning("No users found to sync")
+            except Exception as e:
+                LOGGER.error(f"Error syncing users: {e}")
 
-        singer.write_schema(stream, schema.to_dict(), ["eventID"])
-        extraction_time = singer.utils.now()
-        if self.projects:
-            for project in self.projects:
-                events = await loop.run_in_executor(None, self.client.events, project['id'], self.state)
-                if events:
-                    for event in events:
-                        singer.write_record(stream, event)
-            self.state = singer.write_bookmark(self.state, 'events', 'start', singer.utils.strftime(extraction_time))
+    async def sync_teams(self, schema, stream):
+        """Sync teams from Sentry API."""
+        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
+            # Fix schema format
+            schema_dict = self._get_formatted_schema(schema)
+            singer.write_schema(stream, schema_dict, ["id"])
+            
+            # Get teams data from the client
+            LOGGER.info(f"Fetching teams data")
+            try:
+                teams = await asyncio.get_event_loop().run_in_executor(
+                    None, self.client.teams, self.state
+                )
+                
+                if teams:
+                    LOGGER.info(f"Found {len(teams)} teams to sync")
+                    # Process each team
+                    for team in teams:
+                        singer.write_record(stream, team)
+                        singer.metrics.record_counter(stream).increment()
+                else:
+                    LOGGER.warning("No teams found to sync")
+            except Exception as e:
+                LOGGER.error(f"Error syncing teams: {e}")
 
-    async def sync_users(self, schema):
-        "Users in the organization."
-        stream = "users"
-        loop = asyncio.get_event_loop()
-        singer.write_schema(stream, schema.to_dict(), ["id"])
-        users = await loop.run_in_executor(None, self.client.users, self.state)
-        if users:
-            for user in users:
-                singer.write_record(stream, user)
-        #extraction_time = singer.utils.now()
-        #self.state = singer.write_bookmark(self.state, 'users', 'dateCreated', singer.utils.strftime(extraction_time))
-
-    async def sync_teams(self, schema):
-        "Teams in the organization."
-        stream = "teams"
-        loop = asyncio.get_event_loop()
-        singer.write_schema(stream, schema.to_dict(), ["id"])
-        teams = await loop.run_in_executor(None, self.client.teams, self.state)
-        if teams:
-            for team in teams:
-                singer.write_record(stream, team)
-        #extraction_time = singer.utils.now()
-        #self.state = singer.write_bookmark(self.state, 'teams', 'dateCreated', singer.utils.strftime(extraction_time))
-
-    async def sync_release(self, schema, stream="release"):
+    async def sync_release(self, schema, stream):
         """Sync release data from Sentry API."""
         LOGGER.info(f"Syncing {stream}")
         
-        singer.write_schema(stream, schema.to_dict(), ["version"])
+        # Fix schema format
+        schema_dict = self._get_formatted_schema(schema)
+        singer.write_schema(stream, schema_dict, ["version"])
         extraction_time = singer.utils.now()
         
         # Use existing projects property
@@ -271,60 +314,92 @@ class SentrySync:
                         
                         # Write the record
                         singer.write_record(stream, release)
-                        
+                        singer.metrics.record_counter(stream).increment()
+            
             # Update state with extraction time
             self.state = singer.write_bookmark(self.state, stream, 'start', singer.utils.strftime(extraction_time))
+        else:
+            LOGGER.warning(f"No projects found for fetching releases")
 
     async def sync_project_detail(self, schema, stream):
         """Sync detailed project information from Sentry API."""
         with singer.metrics.job_timer(job_type=f"sync_{stream}"):
-            singer.write_schema(stream, schema.to_dict(), ["id"])
+            # Fix schema format - ensure it's not nested under 'type'
+            schema_dict = schema.to_dict()
+            if 'type' in schema_dict and isinstance(schema_dict['type'], dict) and 'properties' in schema_dict['type']:
+                # Schema is incorrectly nested under 'type', so extract it
+                schema_dict = schema_dict['type']
             
-            # More robust handling of None projects
+            # Now write the properly formatted schema
+            singer.write_schema(stream, schema_dict, ["id"])
+            
+            # Initialize an empty list to guarantee we always have something iterable
             projects_to_process = []
             
-            # Try to get projects if self.projects is None
-            if not self.projects:
-                LOGGER.warning("No projects found to sync details for")
-                try:
+            try:
+                # First check if we already have projects
+                if not self.projects:
+                    LOGGER.info("Fetching projects for project detail sync")
                     self.projects = self.client.projects()
-                except Exception as e:
-                    LOGGER.error(f"Error fetching projects: {e}")
+                
+                # Only assign if we got a valid result
+                if self.projects:
+                    projects_to_process = self.projects
+                    LOGGER.info(f"Found {len(projects_to_process)} projects to process")
+                else:
+                    LOGGER.warning("No projects found to process")
+            except Exception as e:
+                LOGGER.error(f"Error while preparing projects for sync: {e}")
             
-            # Always use a list (even if empty) to avoid None iteration errors
-            if self.projects:
-                projects_to_process = self.projects
-            else:
-                LOGGER.warning("No projects available to process")
-            
-            # Now iterate over the list (which might be empty, but never None)
+            # Process each project - this will be skipped if projects_to_process is empty
             for project in projects_to_process:
-                project_id = project.get("id")
-                project_slug = project.get("slug")
-                org_slug = project.get("organization", {}).get("slug", "split-software")
-                
-                # Get more detailed project information
-                project_detail = None
                 try:
-                    # Use the client to get project details if needed
-                    detail_url = f"/projects/{org_slug}/{project_slug}/"
-                    project_detail = await asyncio.get_event_loop().run_in_executor(
-                        None, self.client._get, detail_url
-                    )
-                    if project_detail and project_detail.status_code == 200:
-                        project_detail = project_detail.json()
-                    else:
-                        # Fallback to using the project data we already have
-                        project_detail = project
-                except Exception as e:
-                    LOGGER.error(f"Error getting project details: {e}")
-                    # Fallback to using the project data we already have
-                    project_detail = project
-                
-                # Add organization context
-                if project_detail:
-                    project_detail['organization_slug'] = org_slug
+                    project_id = project.get("id")
+                    project_slug = project.get("slug")
+                    org_slug = project.get("organization", {}).get("slug", "split-software")
                     
-                    # Write the project detail record
-                    singer.write_record(stream, project_detail)
-                    singer.metrics.record_counter(stream).increment()
+                    LOGGER.info(f"Syncing details for project {project_slug}")
+                    
+                    # Try to get detailed info
+                    try:
+                        detail_url = f"/projects/{org_slug}/{project_slug}/"
+                        response = await asyncio.get_event_loop().run_in_executor(
+                            None, self.client._get, detail_url
+                        )
+                        
+                        if response and response.status_code == 200:
+                            project_detail = response.json()
+                            project_detail['organization_slug'] = org_slug
+                            
+                            # Write record and increment counter
+                            singer.write_record(stream, project_detail)
+                            singer.metrics.record_counter(stream).increment()
+                            LOGGER.info(f"Successfully synced project detail for {project_slug}")
+                        else:
+                            LOGGER.warning(f"Failed to get details for project {project_slug}, falling back to basic project info")
+                            # Fallback to basic project info
+                            project['organization_slug'] = org_slug
+                            singer.write_record(stream, project)
+                            singer.metrics.record_counter(stream).increment()
+                    except Exception as e:
+                        LOGGER.error(f"Error fetching details for project {project_slug}: {e}")
+                        # Still try to use the basic project info
+                        project['organization_slug'] = org_slug
+                        singer.write_record(stream, project)
+                        singer.metrics.record_counter(stream).increment()
+                        
+                except Exception as e:
+                    LOGGER.error(f"Error processing project: {e}")
+                    continue
+                
+            # If we didn't process any projects, log a clear message
+            if not projects_to_process:
+                LOGGER.warning("No projects were processed during project_detail sync")
+
+    def _get_formatted_schema(self, schema):
+        """Ensure schema is properly formatted for Singer protocol."""
+        schema_dict = schema.to_dict()
+        if 'type' in schema_dict and isinstance(schema_dict['type'], dict) and 'properties' in schema_dict['type']:
+            # Schema is incorrectly nested under 'type', so extract it
+            schema_dict = schema_dict['type']
+        return schema_dict

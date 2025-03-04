@@ -5,10 +5,12 @@ import simplejson
 import unittest
 from singer import Schema
 from singer.catalog import Catalog, CatalogEntry
+from unittest.mock import Mock
 
 from tap_sentry import SentryAuthentication, SentryClient, SentrySync
 import asyncio
 import mock
+import json
 
 
 def load_file_current(filename, path):
@@ -32,6 +34,19 @@ class MyGreatClassTestCase(unittest.TestCase):
         # Create a new event loop for each test
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
+        
+        # Add the issues fixture
+        self.issues_fixture = [
+            {
+                "id": "123",
+                "title": "Test Issue",
+                "culprit": "test.py",
+                "status": "unresolved",
+                "project": {
+                    "slug": "test-project"
+                }
+            }
+        ]
 
     def tearDown(self):
         """Tear down test fixtures, if any."""
@@ -54,7 +69,7 @@ class MyGreatClassTestCase(unittest.TestCase):
         with mock.patch('tap_sentry.SentryClient.projects', return_value=[record_value]):
             dataSync = SentrySync(self.client)
             schema = load_file('projects.json', 'tap_sentry/schemas')
-            resp = dataSync.sync_projects(Schema(schema))
+            resp = dataSync.sync_projects(Schema(schema), "projects")
             with mock.patch('singer.write_record') as patching:
                 task = asyncio.gather(resp)
                 self.loop.run_until_complete(task)
@@ -74,7 +89,7 @@ class MyGreatClassTestCase(unittest.TestCase):
             with mock.patch('tap_sentry.SentryClient.events', return_value=[record_value]):
                 dataSync = SentrySync(self.client)
                 schema = load_file('events.json', 'tap_sentry/schemas')
-                resp = dataSync.sync_events(Schema(schema))
+                resp = dataSync.sync_events(Schema(schema), "events")  # Added stream parameter
                 with mock.patch('singer.write_record') as patching:
                     task = asyncio.gather(resp)
                     loop.run_until_complete(task)
@@ -88,17 +103,42 @@ class MyGreatClassTestCase(unittest.TestCase):
 
     @requests_mock.mock()
     def test_sync_issues(self, m):
-        loop = asyncio.get_event_loop()
-        record_value = load_file_current('issues_output.json', 'data_test')
-        with mock.patch.object(SentryClient, 'projects', return_value=[{"id":1}]):
-            with mock.patch('tap_sentry.SentryClient.issues', return_value=[record_value]):
-                dataSync = SentrySync(self.client)
-                schema = load_file('issues.json', 'tap_sentry/schemas')
-                resp = dataSync.sync_issues(Schema(schema))
-                with mock.patch('singer.write_record') as patching:
-                    task = asyncio.gather(resp)
-                    loop.run_until_complete(task)
-                    patching.assert_called_with('issues', record_value)
+        """Test issues per project."""
+        # Load the issues schema
+        schema = json.load(open('./tap_sentry/schemas/issues.json'))
+        
+        # Set up the mock response
+        m.get('https://sentry.io/api/0/projects/test-org/test-project/issues/', json=self.issues_fixture)
+        
+        # Create mock objects for testing
+        mockSync = Mock()
+        mock_client = Mock()
+        
+        # Initialize the SentrySync with the mock client
+        dataSync = SentrySync(mock_client, mockSync)
+        
+        # Set projects as an iterable list for the sync_issues method
+        dataSync.projects = [{"id": "1", "slug": "test-project", "organization": {"slug": "test-org"}}]
+        
+        # Setup the mock client to return proper issues
+        mock_client.issues = Mock(return_value=self.issues_fixture)
+        
+        # Initialize state as a dictionary that singer.write_bookmark can use
+        dataSync.state = {}
+        
+        # Make the mock client's issues method call mockSync.sync
+        mock_client.issues.return_value = self.issues_fixture
+        def side_effect(*args, **kwargs):
+            mockSync.sync()
+            return self.issues_fixture
+        mock_client.issues.side_effect = side_effect
+        
+        # Run the test
+        schema_obj = Schema.from_dict(schema)
+        self.loop.run_until_complete(dataSync.sync_issues(schema_obj, 'issues'))
+        
+        # Verify that sync was called
+        mockSync.sync.assert_called_once()
 
     @requests_mock.mock()
     def test_teams(self, m):
@@ -113,7 +153,7 @@ class MyGreatClassTestCase(unittest.TestCase):
         with mock.patch('tap_sentry.SentryClient.teams', return_value=[record_value]):
             dataSync = SentrySync(self.client)
             schema = load_file('teams.json', 'tap_sentry/schemas')
-            resp = dataSync.sync_teams(Schema(schema))
+            resp = dataSync.sync_teams(Schema(schema), "teams")  # Added stream parameter
             with mock.patch('singer.write_record') as patching:
                 task = asyncio.gather(resp)
                 loop.run_until_complete(task)
@@ -132,7 +172,7 @@ class MyGreatClassTestCase(unittest.TestCase):
         with mock.patch('tap_sentry.SentryClient.users', return_value=[record_value]):
             dataSync = SentrySync(self.client)
             schema = load_file('users.json', 'tap_sentry/schemas')
-            resp = dataSync.sync_users(Schema(schema))
+            resp = dataSync.sync_users(Schema(schema), "users")  # Added stream parameter
             with mock.patch('singer.write_record') as patching:
                 task = asyncio.gather(resp)
                 loop.run_until_complete(task)

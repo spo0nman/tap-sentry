@@ -278,29 +278,39 @@ class SentrySync:
     async def sync_project_detail(self, schema, stream):
         """Sync detailed project information from Sentry API."""
         with singer.metrics.job_timer(job_type=f"sync_{stream}"):
-            self.write_schema(stream, schema)
-            headers = {
-                "Authorization": f"Bearer {self.config['auth_token']}",
-                "Content-Type": "application/json"
-            }
+            singer.write_schema(stream, schema.to_dict(), ["id"])
             
-            # Get list of all organizations/projects
-            organization_projects = await self.fetch_organization_projects(headers)
+            # Get projects directly from the client
+            if not self.projects:
+                self.projects = self.client.projects()
             
-            for org, projects in organization_projects.items():
-                for project in projects:
-                    project_slug = project['slug']
+            for project in self.projects:
+                project_id = project.get("id")
+                project_slug = project.get("slug")
+                org_slug = project.get("organization", {}).get("slug", "split-software")
+                
+                # Get more detailed project information
+                project_detail = None
+                try:
+                    # Use the client to get project details if needed
+                    detail_url = f"/projects/{org_slug}/{project_slug}/"
+                    project_detail = await asyncio.get_event_loop().run_in_executor(
+                        None, self.client._get, detail_url
+                    )
+                    if project_detail and project_detail.status_code == 200:
+                        project_detail = project_detail.json()
+                    else:
+                        # Fallback to using the project data we already have
+                        project_detail = project
+                except Exception as e:
+                    LOGGER.error(f"Error getting project details: {e}")
+                    # Fallback to using the project data we already have
+                    project_detail = project
+                
+                # Add organization context
+                if project_detail:
+                    project_detail['organization_slug'] = org_slug
                     
-                    # Fetch detailed project information
-                    url = f"{self.api_url}/projects/{org}/{project_slug}/"
-                    
-                    # Get detailed project data
-                    project_detail = await self.fetch_single_data(url, headers)
-                    
-                    if project_detail:
-                        # Add organization context
-                        project_detail['organization_slug'] = org
-                        
-                        # Write the project detail record
-                        singer.write_record(stream, project_detail)
-                        singer.metrics.record_counter(stream).increment()
+                    # Write the project detail record
+                    singer.write_record(stream, project_detail)
+                    singer.metrics.record_counter(stream).increment()

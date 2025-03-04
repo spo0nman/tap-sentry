@@ -168,7 +168,7 @@ class MyGreatClassTestCase(unittest.TestCase):
             # Create client and sync instance
             auth = SentryAuthentication(config["api_token"])
             client = SentryClient(auth)
-            sync_instance = SentrySync(client, state)
+            sync_instance = SentrySync(client)
             
             # Get selected streams
             selected_stream_ids = get_selected_streams(catalog)
@@ -228,6 +228,48 @@ class MyGreatClassTestCase(unittest.TestCase):
         first_stream = catalog_data['streams'][0]
         for field in ['stream', 'tap_stream_id', 'schema', 'metadata', 'key_properties']:
             self.assertIn(field, first_stream)
+
+    def test_write_schema_in_sync_methods(self):
+        """Test that sync methods correctly call singer.write_schema."""
+        from tap_sentry import discover
+        from singer.catalog import Catalog, CatalogEntry
+        import singer
+        import mock
+        
+        # Create a mock for singer.write_schema
+        with mock.patch('singer.write_schema') as mock_write_schema:
+            # Set up our SentrySync instance with a mock client
+            mock_client = mock.MagicMock()
+            mock_client.projects.return_value = [
+                {"id": "123", "slug": "test-project", "organization": {"slug": "test-org"}}
+            ]
+            
+            # Create our SentrySync instance
+            sync = SentrySync(mock_client)
+            
+            # Get the catalog from discover to use as test data
+            catalog = discover()
+            
+            # Choose one stream to test
+            stream_name = "project_detail"
+            stream = catalog.get_stream(stream_name)
+            
+            # Run the sync method in a new event loop
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(sync.sync(stream_name, stream.schema))
+            finally:
+                loop.close()
+            
+            # Verify write_schema was called with the correct arguments
+            mock_write_schema.assert_called_once()
+            args, kwargs = mock_write_schema.call_args
+            
+            # Check that the stream and schema were passed correctly
+            self.assertEqual(args[0], stream_name)
+            self.assertIsInstance(args[1], dict)  # Schema should be converted to dict
+            self.assertEqual(args[2], ["id"])  # Key properties should be correct
 
 
 if __name__ == '__main__':

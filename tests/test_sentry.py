@@ -4,6 +4,7 @@ import requests_mock
 import simplejson
 import unittest
 from singer import Schema
+from singer.catalog import Catalog, CatalogEntry
 
 from tap_sentry import SentryAuthentication, SentryClient, SentrySync
 import asyncio
@@ -192,6 +193,41 @@ class MyGreatClassTestCase(unittest.TestCase):
         
         # Rest of the test remains the same
         # ...
+
+    def test_discover_serialization(self):
+        """Test that the discover function returns a serializable Catalog object."""
+        from tap_sentry import discover
+        import json
+        
+        # Get the catalog from discover function
+        catalog = discover()
+        
+        # Verify that catalog is a Catalog object
+        self.assertIsInstance(catalog, Catalog)
+        
+        # Verify that all entries in catalog are CatalogEntry objects
+        for stream in catalog.streams:
+            self.assertIsInstance(stream, CatalogEntry)
+        
+        # Verify that the catalog can be converted to dict and then JSON
+        catalog_dict = catalog.to_dict()
+        
+        # This should not raise any exception
+        try:
+            json_output = json.dumps(catalog_dict, indent=2)
+            self.assertIsNotNone(json_output)
+        except Exception as e:
+            self.fail(f"Failed to serialize catalog to JSON: {str(e)}")
+        
+        # Verify JSON structure includes streams
+        catalog_data = json.loads(json_output)
+        self.assertIn('streams', catalog_data)
+        self.assertTrue(len(catalog_data['streams']) > 0)
+        
+        # Check if required fields exist in the first stream
+        first_stream = catalog_data['streams'][0]
+        for field in ['stream', 'tap_stream_id', 'schema', 'metadata', 'key_properties']:
+            self.assertIn(field, first_stream)
 
 
 if __name__ == '__main__':

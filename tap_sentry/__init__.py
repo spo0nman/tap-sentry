@@ -5,7 +5,8 @@ import singer
 import asyncio
 import concurrent.futures
 from singer import utils, metadata
-from singer.catalog import Catalog
+from singer.catalog import Catalog, CatalogEntry
+from singer.schema import Schema
 
 from tap_sentry.sync import SentryAuthentication, SentryClient, SentrySync
 
@@ -35,21 +36,19 @@ def discover():
     raw_schemas = load_schemas()
     streams = []
     
-    # Make sure project_detail is in the schemas that are loaded
-    
     for schema_name, schema in raw_schemas.items():
         # Create metadata and add to catalog
         stream_metadata = []
         key_properties = []
         
-        # Create catalog entry
-        catalog_entry = {
-            'stream': schema_name,
-            'tap_stream_id': schema_name,
-            'schema': schema,
-            'metadata': stream_metadata,
-            'key_properties': key_properties
-        }
+        # Create proper CatalogEntry objects instead of dictionaries
+        catalog_entry = CatalogEntry(
+            stream=schema_name,
+            tap_stream_id=schema_name,
+            schema=Schema(schema),
+            metadata=stream_metadata,
+            key_properties=key_properties
+        )
         streams.append(catalog_entry)
         
     return Catalog(streams)

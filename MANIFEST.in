@@ -1,2 +1,4 @@
 include LICENSE
 include tap_fastly/*.json
+include tap_sentry/schemas/*.json
+recursive-include tap_sentry *.json

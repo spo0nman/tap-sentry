@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
       name="tap-sentry",
@@ -18,9 +18,9 @@ setup(
     [console_scripts]
     tap-sentry=tap_sentry:main
     """,
-      packages=["tap_sentry"],
+      packages=find_packages(),
       package_data = {
-            "schemas": ["tap_sentry/schemas/*.json"]
+            "tap_sentry": ["schemas/*.json"]
       },
       include_package_data=True,
 )

@@ -12,15 +12,15 @@ plugins:
         - discover
         - state
       settings:
-        - name: api_token
+        - name: auth_token
           kind: password
           label: Sentry API Token
           description: Bearer token for Sentry API authentication
           protected: true
         - name: start_date
-          kind: date_iso8601
+          kind: string
           label: Start Date
-          description: The earliest record date to sync
+          description: The earliest record date to sync (ISO format)
           value: '2020-01-01T00:00:00Z'
       select:
         - projects.*

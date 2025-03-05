@@ -7,17 +7,20 @@
     "sessionStats": {},
     "id": {
       "type": [
-        "string"
+        "string",
+        "null"
       ]
     },
     "slug": {
       "type": [
-        "string"
+        "string",
+        "null"
       ]
     },
     "name": {
       "type": [
-        "string"
+        "string",
+        "null"
       ]
     },
     "platform": {
@@ -28,27 +31,32 @@
     },
     "dateCreated": {
       "type": [
-        "string"
+        "string",
+        "null"
       ],
       "format": "date-time"
     },
     "isBookmarked": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "isMember": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "features": {
       "type": [
-        "array"
+        "array",
+        "null"
       ],
       "items": {
         "type": [
-          "string"
+          "string",
+          "null"
         ]
       }
     },
@@ -61,127 +69,152 @@
     },
     "firstTransactionEvent": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "access": {
       "type": [
-        "array"
+        "array",
+        "null"
       ],
       "items": {
         "type": [
-          "string"
+          "string",
+          "null"
         ]
       }
     },
     "hasAccess": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasFeedbacks": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasFlags": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasMinifiedStackTrace": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasMonitors": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasNewFeedbacks": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasProfiles": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasReplays": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasSessions": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasInsightsHttp": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasInsightsDb": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasInsightsAssets": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasInsightsAppStart": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasInsightsScreenLoad": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasInsightsVitals": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasInsightsCaches": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasInsightsQueues": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "hasInsightsLlmMonitoring": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "isInternal": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "isPublic": {
       "type": [
-        "boolean"
+        "boolean",
+        "null"
       ]
     },
     "avatar": {
       "type": [
-        "object"
+        "object",
+        "null"
       ],
       "properties": {
         "avatarType": {
           "type": [
-            "string"
+            "string",
+            "null"
           ]
         },
         "avatarUuid": {
@@ -200,12 +233,14 @@
     },
     "color": {
       "type": [
-        "string"
+        "string",
+        "null"
       ]
     },
     "status": {
       "type": [
-        "string"
+        "string",
+        "null"
       ]
     },
     "text_content": {
@@ -214,6 +249,128 @@
         "null"
       ],
       "description": "Combined text content for search and embedding"
+    },
+    "team": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "slug": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "teams": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "environments": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "eventProcessing": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "symbolicationDegraded": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "platforms": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "latestRelease": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "hasUserReports": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "latestDeploys": {
+      "type": [
+        "object",
+        "null"
+      ]
     }
   }
 }

@@ -71,9 +71,7 @@
       }
     },
     "id": {
-      "type": [
-        "string"
-      ]
+      "type": ["integer", "string", "null"]
     },
     "slug": {
       "type": [
@@ -82,20 +80,8 @@
     },
     "status": {
       "type": [
-        "object"
-      ],
-      "properties": {
-        "id": {
-          "type": [
-            "string"
-          ]
-        },
-        "name": {
-          "type": [
-            "string"
-          ]
-        }
-      }
+        "string"
+      ]
     },
     "name": {
       "type": [
@@ -103,9 +89,7 @@
       ]
     },
     "dateCreated": {
-      "type": [
-        "string"
-      ],
+      "type": ["string", "null"],
       "format": "date-time"
     },
     "isEarlyAdopter": {
@@ -180,11 +164,101 @@
       ]
     },
     "text_content": {
-      "type": [
-        "string",
-        "null"
-      ],
+      "type": ["string", "null"],
       "description": "Combined text content for search and embedding"
+    },
+    "version": {
+      "type": ["string", "null"]
+    },
+    "shortVersion": {
+      "type": ["string", "null"]
+    },
+    "ref": {
+      "type": ["string", "null"]
+    },
+    "url": {
+      "type": ["string", "null"]
+    },
+    "dateReleased": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "deployCount": {
+      "type": ["integer", "null"]
+    },
+    "commitCount": {
+      "type": ["integer", "null"]
+    },
+    "newGroups": {
+      "type": ["integer", "null"]
+    },
+    "authors": {
+      "type": ["array", "null"],
+      "items": {
+        "type": ["object", "null"],
+        "properties": {
+          "name": { "type": ["string", "null"] },
+          "email": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "lastCommit": {
+      "type": ["object", "null"]
+    },
+    "lastDeploy": {
+      "type": ["object", "null"]
+    },
+    "firstEvent": {
+      "type": ["string", "null"]
+    },
+    "lastEvent": {
+      "type": ["string", "null"]
+    },
+    "projects": {
+      "type": ["array", "null"],
+      "items": {
+        "type": ["object", "null"],
+        "properties": {
+          "id": { "type": ["integer", "string", "null"] },
+          "name": { "type": ["string", "null"] },
+          "slug": { "type": ["string", "null"] },
+          "platform": { "type": ["string", "null"] },
+          "platforms": { 
+            "type": ["array", "null"],
+            "items": { "type": ["string", "null"] }
+          },
+          "newGroups": { "type": ["integer", "null"] },
+          "hasHealthData": { "type": ["boolean", "null"] }
+        }
+      }
+    },
+    "owner": {
+      "type": ["string", "null"]
+    },
+    "userAgent": {
+      "type": ["string", "null"]
+    },
+    "versionInfo": {
+      "type": ["object", "null"],
+      "properties": {
+        "buildHash": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "package": { "type": ["string", "null"] },
+        "version": { "type": ["object", "null"] }
+      }
+    },
+    "data": {
+      "type": ["object", "null"]
+    },
+    "currentProjectMeta": {
+      "type": ["object", "null"]
+    },
+    "project_id": {
+      "type": ["string", "integer", "null"]
+    },
+    "project_slug": {
+      "type": ["string", "null"]
     }
-  }
+  },
+  "key_properties": ["version"]
 }

@@ -15,11 +15,22 @@ This tap requires a `config.json` file which specifies:
 ```json
 {
   "api_token": "YOUR_SENTRY_API_TOKEN",
-  "start_date": "2020-01-01T00:00:00Z"  // date to start syncing from
+  "start_date": "2020-01-01T00:00:00Z",  // date to start syncing from
+  "base_url": "https://sentry.io/api/0/",  // optional, default shown
+  "organization": "your-organization-slug"  // optional, defaults to "split-software"
 }
 ```
 
 To generate a Sentry API token, visit your Sentry organization settings and create a new API token with the appropriate permissions.
+
+### Configuration Options
+
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| api_token | Yes | | Your Sentry API token |
+| start_date | Yes | | Date to start syncing data from (ISO-8601 format) |
+| base_url | No | https://sentry.io/api/0/ | Your Sentry instance URL (for self-hosted or regional instances) |
+| organization | No | split-software | Your Sentry organization slug |
 
 ## Usage
 
@@ -29,6 +40,9 @@ tap-sentry --config config.json --discover > catalog.json
 
 # Sync mode with catalog
 tap-sentry --config config.json --catalog catalog.json
+
+# With debug logging
+tap-sentry --config config.json --catalog catalog.json -v
 ```
 
 ## Supported Streams
@@ -94,6 +108,16 @@ This tap maintains state in the format:
 }
 ```
 
+## Debugging
+
+This tap supports debug logging which shows detailed information about API requests and responses. To enable debug logging, use the `-v` flag or set the environment variable `SINGER_LOG_LEVEL=DEBUG`.
+
+The debug logs include:
+- Request URLs with parameters
+- Response status codes
+- Pagination details
+- Error information
+
 ## Meltano Integration
 
 You can easily use this tap with Meltano by adding the following to your `meltano.yml`:
@@ -120,6 +144,16 @@ plugins:
           label: Start Date
           description: The earliest record date to sync
           value: '2020-01-01T00:00:00Z'
+        - name: base_url
+          kind: string
+          label: Sentry API Base URL
+          description: Base URL for Sentry API (for self-hosted or regional instances)
+          value: 'https://sentry.io/api/0/'
+        - name: organization
+          kind: string
+          label: Sentry Organization
+          description: Your Sentry organization slug
+          value: 'split-software'
       select:
         - projects.*
         - issues.*
@@ -133,7 +167,6 @@ plugins:
 
 ## Limitations
 
-- The tap uses the Sentry organization name "split-software" hardcoded in the API endpoints. For different organizations, this would need to be updated.
 - API rate limits from Sentry may apply.
 
 ## Development
@@ -158,5 +191,3 @@ python -m unittest discover tests
 
 MIT
 ```
-
-This README.md provides comprehensive documentation on installation, configuration, usage, supported streams, data replication, state management, Meltano integration, limitations, and development instructions for the tap-sentry Singer connector.

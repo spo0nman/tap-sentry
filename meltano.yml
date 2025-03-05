@@ -19,6 +19,16 @@ plugins:
           kind: date_iso8601
           description: Start date for data extraction
           label: Start Date
+        - name: base_url
+          kind: string
+          description: Base URL for Sentry API (for self-hosted or regional instances)
+          label: Sentry API Base URL
+          value: 'https://sentry.io/api/0/'
+        - name: organization
+          kind: string
+          description: Your Sentry organization slug
+          label: Sentry Organization
+          value: 'split-software'
       select:
         - projects.*
         - teams.*

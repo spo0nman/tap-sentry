@@ -86,9 +86,19 @@ def create_sync_tasks(config, state, catalog):
 
 def sync(config, state, catalog):
     """Sync data from tap source."""
-    # Create client and sync instance
+    # Get authenticated client (needs to pass base_url and organization from config)
     auth = SentryAuthentication(config["api_token"])
-    client = SentryClient(auth)
+    
+    # Use config values for base_url and organization or default values if not provided
+    base_url = config.get("base_url", "https://sentry.io/api/0/")
+    organization = config.get("organization", "split-software")
+    
+    # Create client with custom base_url and organization
+    client = SentryClient(auth, url=base_url, organization=organization)
+    
+    # Log configuration for debugging
+    LOGGER.info(f"Using Sentry API at: {base_url} for organization: {organization}")
+
     sync_instance = SentrySync(client, state)
     
     # Get selected streams

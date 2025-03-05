@@ -25,7 +25,7 @@ def load_file(filename, path):
         return simplejson.load(f)
 
 # Our test case class
-class MyGreatClassTestCase(unittest.TestCase):
+class TapSentryTestCase(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures, if any."""
@@ -310,6 +310,53 @@ class MyGreatClassTestCase(unittest.TestCase):
             self.assertEqual(args[0], stream_name)
             self.assertIsInstance(args[1], dict)  # Schema should be converted to dict
             self.assertEqual(args[2], ["id"])  # Key properties should be correct
+
+    @requests_mock.mock()
+    def test_custom_url_and_organization(self, m):
+        """Test that custom base_url and organization are used correctly."""
+        # Setup custom client with different base_url and organization
+        auth = SentryAuthentication("test-token")
+        custom_client = SentryClient(
+            auth, 
+            url="https://de.sentry.io/api/0/", 
+            organization="custom-org"
+        )
+        
+        # Sample record to be returned by the API
+        record_value = load_file_current('projects_output.json', 'data_test')
+        
+        # Setup the mock to respond to the expected URL
+        expected_url = "https://de.sentry.io/api/0//organizations/custom-org/projects/"
+        m.get(expected_url, json=[record_value])
+        
+        # Verify debug message is logged with correct URL
+        with mock.patch('tap_sentry.LOGGER.debug') as mock_logger:
+            projects = custom_client.projects()
+            
+            # Check if the correct URL was logged
+            mock_logger.assert_any_call(f"Fetching projects from: {expected_url}")
+        
+        # Verify the client returns the expected data
+        self.assertEqual(projects, [record_value])
+        
+        # Additional test for another endpoint with the custom organization
+        issues_endpoint = "https://de.sentry.io/api/0//organizations/custom-org/issues/?project=1"
+        m.get(issues_endpoint, json=[self.issues_fixture[0]])
+        
+        with mock.patch('tap_sentry.LOGGER.debug') as mock_logger:
+            issues = custom_client.issues(1, {})
+            
+            # Check if the correct URL was logged
+            mock_logger.assert_any_call(f"Fetching issues from: {issues_endpoint}")
+        
+        # Verify the client returns the expected data
+        self.assertEqual(issues, [self.issues_fixture[0]])
+        
+        # Verify that history contains our expected requests
+        # This checks the actual URLs that were requested by the client
+        request_urls = [req.url for req in m.request_history]
+        self.assertIn(expected_url, request_urls)
+        self.assertIn(issues_endpoint, request_urls)
 
 
 if __name__ == '__main__':

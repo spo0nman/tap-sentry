@@ -55,9 +55,17 @@ class SentryClient:
     def projects(self):
         try:
             url_path = f"/organizations/{self._organization}/projects/"
-            LOGGER.debug(f"Fetching projects from: {self._base_url + url_path}")
-            projects = self._get(url_path)
-            return projects.json()
+            full_url = self._base_url + url_path
+            LOGGER.info(f"Fetching projects from URL: {full_url}")
+            try:
+                LOGGER.debug(f"Making request with headers: {self.session.headers}")
+                projects = self._get(url_path)
+                result = projects.json()
+                LOGGER.info(f"Projects API response status: {projects.status_code}, found {len(result)} projects")
+                return result
+            except Exception as e:
+                LOGGER.error(f"Error making request to {full_url}: {str(e)}")
+                return None
         except Exception as e:
             LOGGER.debug(f"Error fetching projects: {str(e)}")
             return None

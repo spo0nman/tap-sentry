@@ -1,13 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": true,
   "properties": {
     "stats": {},
     "transactionStats": {},
     "sessionStats": {},
     "id": {
       "type": [
-        "string"
+        "string",
+        "null"
       ]
     },
     "slug": {
@@ -214,6 +216,106 @@
         "null"
       ],
       "description": "Combined text content for search and embedding"
+    },
+    "team": {
+      "type": ["object", "null"]
+    },
+    "teams": {
+      "type": ["array", "null"]
+    },
+    "options": {
+      "type": ["object", "null"]
+    },
+    "digestsMinDelay": {
+      "type": ["integer", "null"]
+    },
+    "digestsMaxDelay": {
+      "type": ["integer", "null"]
+    },
+    "subjectPrefix": {
+      "type": ["string", "null"]
+    },
+    "allowedDomains": {
+      "type": ["array", "null"]
+    },
+    "resolveAge": {
+      "type": ["integer", "null"]
+    },
+    "dataScrubber": {
+      "type": ["boolean", "null"]
+    },
+    "dataScrubberDefaults": {
+      "type": ["boolean", "null"]
+    },
+    "safeFields": {
+      "type": ["array", "null"]
+    },
+    "sensitiveFields": {
+      "type": ["array", "null"]
+    },
+    "subjectTemplate": {
+      "type": ["string", "null"]
+    },
+    "securityToken": {
+      "type": ["string", "null"]
+    },
+    "verifySSL": {
+      "type": ["boolean", "null"]
+    },
+    "scrubIPAddresses": {
+      "type": ["boolean", "null"]
+    },
+    "scrapeJavaScript": {
+      "type": ["boolean", "null"]
+    },
+    "highlightTags": {
+      "type": ["array", "null"]
+    },
+    "highlightContext": {
+      "type": ["object", "null"]
+    },
+    "highlightPreset": {
+      "type": ["object", "null"]
+    },
+    "groupingConfig": {
+      "type": ["string", "null"]
+    },
+    "groupingEnhancements": {
+      "type": ["string", "null"]
+    },
+    "secondaryGroupingExpiry": {
+      "type": ["integer", "null"]
+    },
+    "fingerprintingRules": {
+      "type": ["string", "null"]
+    },
+    "organization": {
+      "type": ["object", "null"]
+    },
+    "plugins": {
+      "type": ["array", "null"]
+    },
+    "platforms": {
+      "type": ["array", "null"]
+    },
+    "processingIssues": {
+      "type": ["integer", "null"]
+    },
+    "builtinSymbolSources": {
+      "type": ["array", "null"]
+    },
+    "eventProcessing": {
+      "type": ["object", "null"]
+    },
+    "symbolSources": {
+      "type": ["string", "null"]
+    },
+    "isDynamicallySampled": {
+      "type": ["boolean", "null"]
+    },
+    "organization_slug": {
+      "type": ["string", "null"]
     }
-  }
+  },
+  "key_properties": ["id"]
 }

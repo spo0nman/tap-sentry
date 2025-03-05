@@ -157,6 +157,7 @@ def extract_path_schema(api_schema: Dict[str, Any], path_pattern: str, schema_re
     singer_schema = {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
+        "additionalProperties": true,
         "properties": {}
     }
     

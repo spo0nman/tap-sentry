@@ -314,7 +314,9 @@ class SentrySync:
                     LOGGER.info(f"Found {len(teams)} teams to sync")
                     # Process each team
                     for team in teams:
-                        singer.write_record(stream, team)
+                        # Process the record to add text_content and handle ID conversion
+                        processed_team = self.process_record(stream, team)
+                        singer.write_record(stream, processed_team)
                         singer.metrics.record_counter(stream).increment()
                 else:
                     LOGGER.warning("No teams found to sync")
@@ -352,7 +354,8 @@ class SentrySync:
                             release['project_slug'] = project_slug
                         
                         # Write the record
-                        singer.write_record(stream, release)
+                        processed_release = self.process_record(stream, release)
+                        singer.write_record(stream, processed_release)
                         singer.metrics.record_counter(stream).increment()
             
             # Update state with extraction time
@@ -446,3 +449,30 @@ class SentrySync:
             # Schema is incorrectly nested under 'type', so extract it
             schema_dict = schema_dict['type']
         return schema_dict
+
+    def process_record(self, stream_name, record):
+        """Add text_content field to record for embedding/search."""
+        # Only process if text_content isn't already set
+        if 'text_content' not in record or not record['text_content']:
+            if stream_name == "teams":
+                record["text_content"] = f"Team {record.get('name', '')} ({record.get('slug', '')})"
+            elif stream_name == "users":
+                user = record.get("user", {})
+                record["text_content"] = f"User {record.get('name', '')} - {user.get('email', record.get('email', ''))} - {record.get('orgRole', '')}"
+            elif stream_name == "projects" or stream_name == "project_detail":
+                record["text_content"] = f"Project {record.get('name', '')} ({record.get('slug', '')}) - Platform: {record.get('platform', '')}"
+            elif stream_name == "release":
+                record["text_content"] = f"Release {record.get('version', '')} - {record.get('shortVersion', '')} - Project: {record.get('project_slug', '')}"
+            elif stream_name == "issues":
+                record["text_content"] = f"Issue {record.get('title', '')} - {record.get('culprit', '')} - {record.get('level', '')}"
+            elif stream_name == "events":
+                record["text_content"] = f"Event {record.get('eventID', '')} - {record.get('title', '')} - Project: {record.get('project', {}).get('name', '')}"
+            else:
+                # Generic fallback
+                record["text_content"] = f"{stream_name.capitalize()} - {record.get('id', 'unknown')}"
+        
+        # Convert integer IDs to strings if needed
+        if 'id' in record and isinstance(record['id'], int):
+            record['id'] = str(record['id'])
+        
+        return record

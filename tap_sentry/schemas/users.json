@@ -283,8 +283,33 @@
     },
     "orgRole": {
       "type": [
-        "string"
+        "string",
+        "null"
       ]
+    },
+    "role": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "roleName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "projects": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
     },
     "pending": {
       "type": [
@@ -357,5 +382,6 @@
       ],
       "description": "Combined text content for search and embedding"
     }
-  }
+  },
+  "key_properties": ["id"]
 }

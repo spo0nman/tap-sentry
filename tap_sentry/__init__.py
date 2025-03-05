@@ -119,49 +119,32 @@ def sync(config, state, catalog):
 
 @utils.handle_top_exception(LOGGER)
 def main():
-    args = utils.parse_args()
-    
-    config = args.config if args.config else {}
-    state = args.state if args.state else {}
-    catalog = args.catalog if args.catalog else {}
-    
-    # Log configuration (scrubbing sensitive info)
-    safe_config = config.copy()
-    if 'api_token' in safe_config:
-        safe_config['api_token'] = '***REDACTED***'
-    LOGGER.debug(f"Configuration: {json.dumps(safe_config, indent=2)}")
-    
-    # Log state
-    LOGGER.debug(f"Starting state: {json.dumps(state, indent=2)}")
-    
-    # Extract necessary config values
-    auth_token = config.get('api_token')
-    org_slug = config.get('organization')
-    project_slugs = config.get('project_slugs', [])
-    start_date = config.get('start_date')
-    base_url = config.get('base_url', 'https://sentry.io/api/0')
-    
-    LOGGER.debug(f"Using organization: {org_slug}")
-    LOGGER.debug(f"Using projects: {project_slugs}")
-    LOGGER.debug(f"Using start_date: {start_date}")
-    LOGGER.debug(f"Using base_url: {base_url}")
-    
-    if not auth_token or not org_slug:
-        LOGGER.error("API token and organization slug are required")
-        return
-    
-    # Create the Sentry client
-    LOGGER.debug(f"Initializing Sentry client")
-    client = SentryClient(auth_token, org_slug, base_url)
-    
-    # Initialize the sync object
-    LOGGER.debug(f"Initializing SentrySync")
-    sync = SentrySync(client, project_slugs, start_date)
-    
-    # Run the sync
-    LOGGER.debug(f"Starting sync operation")
-    sync.sync(catalog, state)
-    LOGGER.debug(f"Sync operation completed")
+    # Parse command line arguments
+    args = utils.parse_args(REQUIRED_CONFIG_KEYS)
+
+    # If discover flag was passed, run discovery mode and dump output to stdout
+    if args.discover:
+        catalog = discover()
+        # Convert the Catalog object to dict before serializing to JSON
+        catalog_dict = catalog.to_dict()
+        print(json.dumps(catalog_dict, indent=2))
+    # Otherwise run in sync mode
+    else:
+        if args.catalog:
+            catalog = args.catalog
+        else:
+            catalog = discover()
+
+        config = args.config
+        state ={
+            "bookmarks": {
+               "issues": {"start": config["start_date"]},
+                "events": {"start": config["start_date"]}
+            }
+        }
+        state.update(args.state)
+
+        sync(config, state, catalog)
 
 if __name__ == "__main__":
     main()

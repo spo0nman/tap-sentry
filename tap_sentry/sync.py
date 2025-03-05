@@ -14,14 +14,6 @@ import requests
 import pendulum
 from singer.bookmarks import write_bookmark, get_bookmark
 
-import aiohttp
-from datetime import datetime, timedelta
-from dateutil import parser
-from typing import Dict, List, Set, Optional, Any
-import backoff
-from . import utils
-import logging
-
 LOGGER = singer.get_logger()
 
 class SentryAuthentication(requests.auth.AuthBase):
@@ -35,109 +27,57 @@ class SentryAuthentication(requests.auth.AuthBase):
 
 
 class SentryClient:
-    def __init__(self, auth_token, org_slug, base_url='https://sentry.io/api/0'):
-        self.auth_token = auth_token
-        self.org_slug = org_slug
-        self.base_url = base_url  # This accepts custom base_url
-        self.session = None
+    def __init__(self, auth: SentryAuthentication, url="https://sentry.io/api/0/"):
+        self._base_url = url
+        self._auth = auth
+        self._session = None
 
-    async def _create_session(self):
-        if self.session is None:
-            LOGGER.debug(f"Creating new session with base_url: {self.base_url}")
-            self.session = aiohttp.ClientSession(headers={
-                'Authorization': f'Bearer {self.auth_token}',
-                'Content-Type': 'application/json'
-            })
-            LOGGER.debug(f"Session headers: {self.session.headers}")
+    @property
+    def session(self):
+        if not self._session:
+            self._session = requests.Session()
+            self._session.auth = self._auth
+            self._session.headers.update({"Accept": "application/json"})
+
+        return self._session
 
     def _get(self, path, params=None):
-        # Create a URL by joining base_url and path
-        url = self.base_url + path
-        LOGGER.debug(f"Making GET request to: {url}")
-        LOGGER.debug(f"Request parameters: {params}")
-        
-        try:
-            response = self.session.get(url, params=params)
-            LOGGER.debug(f"Response status code: {response.status_code}")
-            
-            # Log response headers
-            LOGGER.debug(f"Response headers: {dict(response.headers)}")
-            
-            # Try to log response body (truncated if too large)
-            try:
-                response_text = response.text
-                if len(response_text) > 1000:
-                    LOGGER.debug(f"Response body (truncated): {response_text[:1000]}...")
-                else:
-                    LOGGER.debug(f"Response body: {response_text}")
-            except Exception as e:
-                LOGGER.debug(f"Could not log response body: {str(e)}")
-            
-            # Raise for any HTTP errors
-            response.raise_for_status()
-            return response
-        except requests.exceptions.RequestException as e:
-            LOGGER.error(f"HTTP request failed: {str(e)}")
-            raise
+        #url = urljoin(self._base_url, path)
+        url = self._base_url + path
+        response = self.session.get(url, params=params)
+        response.raise_for_status()
 
-    async def projects(self):
-        await self._create_session()
-        url = f"{self.base_url}/organizations/{self.org_slug}/projects/"
-        LOGGER.debug(f"Requesting projects from URL: {url}")
-        
-        try:
-            response = await self.session.get(url)
-            status = response.status
-            LOGGER.debug(f"Projects API response status: {status}")
-            
-            if status != 200:
-                error_text = await response.text()
-                LOGGER.error(f"Failed to fetch projects: Status {status}, Response: {error_text}")
-                return []
-            
-            response_json = await response.json()
-            LOGGER.debug(f"Projects API returned {len(response_json)} projects")
-            for project in response_json:
-                LOGGER.debug(f"Project: {project.get('slug')} (ID: {project.get('id')})")
-            return response_json
-        except Exception as e:
-            LOGGER.error(f"Exception while fetching projects: {str(e)}")
-            return []
+        return response
 
-    async def issues(self, project_slug, start_date=None, end_date=None):
-        await self._create_session()
-        url = f"{self.base_url}/projects/{self.org_slug}/{project_slug}/issues/"
-        
-        params = {}
-        if start_date:
-            params['start'] = start_date.isoformat() if isinstance(start_date, datetime) else start_date
-        if end_date:
-            params['end'] = end_date.isoformat() if isinstance(end_date, datetime) else end_date
-        
-        LOGGER.debug(f"Requesting issues from URL: {url}")
-        LOGGER.debug(f"Request parameters: {params}")
-        
+    def projects(self):
         try:
-            response = await self.session.get(url, params=params)
-            status = response.status
-            LOGGER.debug(f"Issues API response status for {project_slug}: {status}")
-            
-            if status != 200:
-                error_text = await response.text()
-                LOGGER.error(f"Failed to fetch issues for {project_slug}: Status {status}, Response: {error_text}")
-                return []
-            
-            response_json = await response.json()
-            LOGGER.debug(f"Issues API for {project_slug} returned {len(response_json)} issues")
-            return response_json
-        except Exception as e:
-            LOGGER.error(f"Exception while fetching issues for {project_slug}: {str(e)}")
-            return []
+            projects = self._get(f"/organizations/split-software/projects/")
+            return projects.json()
+        except:
+            return None
+
+    def issues(self, project_id, state):
+        try:
+            bookmark = get_bookmark(state, "issues", "start")
+            query = f"/organizations/split-software/issues/?project={project_id}"
+            if bookmark:
+                query += "&start=" + urllib.parse.quote(bookmark) + "&utc=true" + '&end=' + urllib.parse.quote(singer.utils.strftime(singer.utils.now()))
+            response = self._get(query)
+            issues = response.json()
+            url= response.url
+            while (response.links is not None and response.links.__len__() >0  and response.links['next']['results'] == 'true'):
+                url = response.links['next']['url']
+                response = self.session.get(url)
+                issues += response.json()
+            return issues
+
+        except:
+            return None
 
     def events(self, project_id, state):
         try:
             bookmark = get_bookmark(state, "events", "start")
-            query = f"/organizations/{self.org_slug}/events/?project={project_id}"
+            query = f"/organizations/split-software/events/?project={project_id}"
             if bookmark:
                 query += "&start=" + urllib.parse.quote(bookmark) + "&utc=true" + '&end=' + urllib.parse.quote(singer.utils.strftime(singer.utils.now()))
             response = self._get(query)
@@ -153,7 +93,7 @@ class SentryClient:
 
     def teams(self, state):
         try:
-            response = self._get(f"/organizations/{self.org_slug}/teams/")
+            response = self._get(f"/organizations/split-software/teams/")
             teams = response.json()
             extraction_time = singer.utils.now()
             while (response.links is not None and response.links.__len__() >0  and  response.links['next']['results'] == 'true'):
@@ -166,7 +106,7 @@ class SentryClient:
 
     def users(self, state):
         try:
-            response = self._get(f"/organizations/{self.org_slug}/users/")
+            response = self._get(f"/organizations/split-software/users/")
             users = response.json()
             return users
         except:
@@ -175,7 +115,7 @@ class SentryClient:
     def releases(self, project_id, state):
         try:
             bookmark = get_bookmark(state, "releases", "start")
-            query = f"/organizations/{self.org_slug}/releases/?project={project_id}"
+            query = f"/organizations/split-software/releases/?project={project_id}"
             if bookmark:
                 query += "&start=" + urllib.parse.quote(bookmark) + "&utc=true" + '&end=' + urllib.parse.quote(singer.utils.strftime(singer.utils.now()))
             response = self._get(query)
@@ -236,65 +176,22 @@ class SentrySync:
             LOGGER.warning(f"No sync method found for {stream}")
             return None
 
-    async def sync_issues(self, schema, stream_name):
-        """Sync issues data from Sentry."""
-        LOGGER.debug(f"Starting sync for issues stream")
-        with singer.metrics.job_timer(job_type="sync_issues"):
-            # Write schema
-            singer.write_schema(stream_name, schema.to_dict(), ["id"])
+    async def sync_issues(self, schema, stream):
+        """Sync issues from Sentry API."""
+        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
+            # Fix schema format
+            schema_dict = self._get_formatted_schema(schema)
+            singer.write_schema(stream, schema_dict, ["id"])
             
-            # Get current time for bookmarking
             extraction_time = singer.utils.now()
-            
-            # Prepare start/end dates
-            bookmark_date = get_bookmark(self.state, stream_name, "start")
-            LOGGER.debug(f"Using bookmark date for issues: {bookmark_date}")
-            
-            # Check if we have any projects
-            if not self.projects:
-                try:
-                    LOGGER.debug("No projects loaded yet, fetching projects")
-                    self.projects = await self.client.projects()
-                    LOGGER.debug(f"Found {len(self.projects)} projects")
-                except Exception as e:
-                    LOGGER.error(f"Error fetching projects: {str(e)}")
-                    self.projects = []
-            
-            # Process each project
             if self.projects:
                 for project in self.projects:
-                    project_id = project.get("id")
-                    project_slug = project.get("slug")
-                    LOGGER.debug(f"Processing issues for project: {project_slug} (ID: {project_id})")
-                    
-                    try:
-                        # Fetch issues for this project
-                        issues = await self.client.issues(project_slug, bookmark_date)
-                        
-                        if issues:
-                            LOGGER.debug(f"Found {len(issues)} issues for project {project_slug}")
-                            for issue in issues:
-                                # Add project context if not present
-                                if 'project_id' not in issue and project_id:
-                                    issue['project_id'] = project_id
-                                if 'project_slug' not in issue and project_slug:
-                                    issue['project_slug'] = project_slug
-                                
-                                # Write the record
-                                singer.write_record(stream_name, issue)
-                                singer.metrics.record_counter(stream_name).increment()
-                        else:
-                            LOGGER.debug(f"No issues found for project {project_slug}")
-                    except Exception as e:
-                        LOGGER.error(f"Error processing issues for project {project_slug}: {str(e)}")
-                        continue
-            else:
-                LOGGER.warning("No projects found, skipping issues sync")
-            
-            # Update state with extraction time
-            self.state = singer.write_bookmark(self.state, stream_name, 'start', singer.utils.strftime(extraction_time))
-            singer.write_state(self.state)
-            LOGGER.debug(f"Updated state for issues stream: {self.state}")
+                    issues = await asyncio.get_event_loop().run_in_executor(None, self.client.issues, project['id'], self.state)
+                    if (issues):
+                        for issue in issues:
+                            singer.write_record(stream, issue)
+
+            self.state = singer.write_bookmark(self.state, 'issues', 'start', singer.utils.strftime(extraction_time))
 
     async def sync_projects(self, schema, stream):
         """Sync projects."""

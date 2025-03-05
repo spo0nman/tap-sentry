@@ -5,7 +5,7 @@ __pycache__/
 .venv
 # C extensions
 *.so
-
+.pytest_cache/
 # Distribution / packaging
 .Python
 env/

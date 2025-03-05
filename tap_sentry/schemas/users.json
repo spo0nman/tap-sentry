@@ -1,336 +1,361 @@
 {
-  "properties":{
-    "dateCreated":{
-      "type":[
-        "null",
-        "string"
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "externalUsers": {
+      "type": [
+        "array"
       ],
-      "format":"date-time"
-    },
-    "user":{
-      "properties":{
-        "username":{
-          "type":[
-            "null",
-            "string"
-          ]
-        },
-        "lastLogin":{
-          "type":[
-            "null",
-            "string"
-          ],
-          "format":"date-time"
-        },
-        "isSuperuser":{
-          "type":[
-            "null",
-            "boolean"
-          ]
-        },
-        "emails":{
-          "type":[
-            "null",
-            "array"
-          ],
-          "items":{
-            "properties":{
-              "is_verified":{
-                "type":[
-                  "null",
-                  "boolean"
-                ]
-              },
-              "id":{
-                "type":[
-                  "null",
-                  "string"
-                ]
-              },
-              "email":{
-                "type":[
-                  "null",
-                  "string"
-                ]
-              }
-            }
+      "items": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "externalId": {
+            "type": [
+              "string"
+            ]
+          },
+          "userId": {
+            "type": [
+              "string"
+            ]
+          },
+          "teamId": {
+            "type": [
+              "string"
+            ]
+          },
+          "id": {
+            "type": [
+              "string"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string"
+            ]
+          },
+          "externalName": {
+            "type": [
+              "string"
+            ]
+          },
+          "integrationId": {
+            "type": [
+              "string"
+            ]
           }
-        },
-        "isManaged":{
-          "type":[
-            "null",
-            "boolean"
-          ]
-        },
-        "lastActive":{
-          "type":[
-            "null",
-            "string"
-          ],
-          "format":"date-time"
-        },
-        "identities":{
-          "type":[
-            "null",
+        }
+      }
+    },
+    "id": {
+      "type": [
+        "string"
+      ]
+    },
+    "email": {
+      "type": [
+        "string"
+      ]
+    },
+    "name": {
+      "type": [
+        "string"
+      ]
+    },
+    "user": {
+      "type": [
+        "object"
+      ],
+      "properties": {
+        "identities": {
+          "type": [
             "array"
           ],
-          "items":{
-            "properties":{
-              "name":{
-                "type":[
-                  "null",
+          "items": {
+            "type": [
+              "object"
+            ],
+            "properties": {
+              "id": {
+                "type": [
                   "string"
                 ]
               },
-              "dateVerified":{
-                "type":[
-                  "null",
+              "name": {
+                "type": [
                   "string"
-                ],
-                "format":"date-time"
+                ]
               },
-              "provider":{
-                "type":[
-                  "null",
+              "organization": {
+                "type": [
                   "object"
                 ],
-                "properties":{
-                  "id":{
-                    "type":[
-                      "null",
+                "properties": {
+                  "slug": {
+                    "type": [
                       "string"
                     ]
                   },
-                  "name":{
-                    "type":[
-                      "null",
+                  "name": {
+                    "type": [
                       "string"
                     ]
                   }
                 }
               },
-              "dateSynced":{
-                "type":[
-                  "null",
-                  "string"
+              "provider": {
+                "type": [
+                  "object"
                 ],
-                "format":"date-time"
-              },
-              "organization":{
-                "slug":{
-                  "type":[
-                    "null",
-                    "string"
-                  ]
-                },
-                "name":{
-                  "type":[
-                    "null",
-                    "string"
-                  ]
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string"
+                    ]
+                  },
+                  "name": {
+                    "type": [
+                      "string"
+                    ]
+                  }
                 }
               },
-              "id":{
-                "type":[
-                  "null",
+              "dateVerified": {
+                "type": [
                   "string"
-                ]
+                ],
+                "format": "date-time"
+              },
+              "dateSynced": {
+                "type": [
+                  "string"
+                ],
+                "format": "date-time"
               }
             }
           }
         },
-        "id":{
-          "type":[
-            "null",
-            "string"
-          ]
-        },
-        "isActive":{
-          "type":[
-            "null",
-            "boolean"
-          ]
-        },
-        "has2fa":{
-          "type":[
-            "null",
-            "boolean"
-          ]
-        },
-        "name":{
-          "type":[
-            "null",
-            "string"
-          ]
-        },
-        "avatarUrl":{
-          "type":[
-            "null",
-            "string"
-          ]
-        },
-        "dateJoined":{
-          "type":[
-            "null",
-            "string"
+        "avatar": {
+          "type": [
+            "object"
           ],
-          "format":"date-time"
-        },
-        "options":{
-          "properties":{
-            "timezone":{
-              "type":[
-                "null",
+          "properties": {
+            "avatarType": {
+              "type": [
                 "string"
               ]
             },
-            "stacktraceOrder":{
-              "type":[
-                "null",
-                "integer"
+            "avatarUuid": {
+              "type": [
+                "string",
+                "null"
               ]
             },
-            "language":{
-              "type":[
-                "null",
-                "string"
-              ]
-            },
-            "clock24Hours":{
-              "type":[
-                "null",
-                "boolean"
-              ]
-            }
-          },
-          "type":[
-            "null",
-            "object"
-          ]
-        },
-        "flags":{
-          "type":[
-            "null",
-            "object"
-          ],
-          "properties":{
-            "newsletter_consent_prompt":{
-              "type":[
-                "null",
-                "boolean"
+            "avatarUrl": {
+              "type": [
+                "string",
+                "null"
               ]
             }
           }
         },
-        "avatar":{
-          "type":[
-            "null",
-            "object"
+        "authenticators": {
+          "type": [
+            "array"
           ],
-          "properties":{
-            "avatarUuid":{
-              "type":[
-                "null",
-                "string"
-              ]
-            },
-            "avatarType":{
-              "type":[
-                "null",
-                "string"
-              ]
-            }
-          }
+          "items": {}
         },
-        "hasPasswordAuth":{
-          "type":[
-            "null",
+        "canReset2fa": {
+          "type": [
             "boolean"
           ]
         },
-        "email":{
-          "type":[
-            "null",
+        "id": {
+          "type": [
             "string"
           ]
+        },
+        "name": {
+          "type": [
+            "string"
+          ]
+        },
+        "username": {
+          "type": [
+            "string"
+          ]
+        },
+        "email": {
+          "type": [
+            "string"
+          ]
+        },
+        "avatarUrl": {
+          "type": [
+            "string"
+          ]
+        },
+        "isActive": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "hasPasswordAuth": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "isManaged": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "dateJoined": {
+          "type": [
+            "string"
+          ],
+          "format": "date-time"
+        },
+        "lastLogin": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "has2fa": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "lastActive": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "isSuperuser": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "isStaff": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "experiments": {
+          "type": [
+            "object"
+          ]
+        },
+        "emails": {
+          "type": [
+            "array"
+          ],
+          "items": {
+            "type": [
+              "object"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "string"
+                ]
+              },
+              "email": {
+                "type": [
+                  "string"
+                ]
+              },
+              "is_verified": {
+                "type": [
+                  "boolean"
+                ]
+              }
+            }
+          }
         }
-      },
-      "type":[
-        "null",
-        "object"
-      ]
+      }
     },
-    "roleName":{
-      "type":[
-        "null",
+    "orgRole": {
+      "type": [
         "string"
       ]
     },
-    "expired":{
-      "type":[
-        "null",
-        "string"
+    "pending": {
+      "type": [
+        "boolean"
       ]
     },
-    "id":{
-      "type":[
-        "null",
-        "string"
+    "expired": {
+      "type": [
+        "boolean"
       ]
     },
-    "projects":{
-      "type":[
-        "null",
-        "array"
-      ]
-    },
-    "name":{
-      "type":[
-        "null",
-        "string"
-      ]
-    },
-    "role":{
-      "type":[
-        "null",
-        "string"
-      ]
-    },
-    "flags":{
-      "type":[
-        "null",
+    "flags": {
+      "type": [
         "object"
       ],
-      "properties":{
-        "sso:linked":{
-          "type":[
-            "null",
+      "properties": {
+        "idp:provisioned": {
+          "type": [
             "boolean"
           ]
         },
-        "sso:invalid":{
-          "type":[
-            "null",
+        "idp:role-restricted": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "sso:linked": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "sso:invalid": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "member-limit:restricted": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "partnership:restricted": {
+          "type": [
             "boolean"
           ]
         }
       }
     },
-    "email":{
-      "type":[
-        "null",
+    "dateCreated": {
+      "type": [
+        "string"
+      ],
+      "format": "date-time"
+    },
+    "inviteStatus": {
+      "type": [
         "string"
       ]
     },
-    "pending":{
-      "type":[
-        "null",
-        "boolean"
+    "inviterName": {
+      "type": [
+        "string",
+        "null"
       ]
+    },
+    "text_content": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Combined text content for search and embedding"
     }
-  },
-"type":[
-"null",
-"object"
-]
+  }
 }

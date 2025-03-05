@@ -412,6 +412,9 @@ class SentrySync:
                             project_detail = response.json()
                             project_detail['organization_slug'] = org_slug
                             
+                            # Add text_content field for embedding/search
+                            project_detail['text_content'] = f"{project_detail.get('name', '')} {project_detail.get('slug', '')} {project_detail.get('platform', '')}"
+                            
                             # Write record and increment counter
                             singer.write_record(stream, project_detail)
                             singer.metrics.record_counter(stream).increment()

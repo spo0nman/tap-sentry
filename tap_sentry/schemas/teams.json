@@ -1,197 +1,549 @@
 {
-  "properties":{
-    "memberCount":{
-      "type":[
-        "null",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": [
+        "string"
+      ]
+    },
+    "slug": {
+      "type": [
+        "string"
+      ]
+    },
+    "name": {
+      "type": [
+        "string"
+      ]
+    },
+    "dateCreated": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "isMember": {
+      "type": [
+        "boolean"
+      ]
+    },
+    "teamRole": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "flags": {
+      "type": [
+        "object"
+      ]
+    },
+    "access": {
+      "type": [
+        "array"
+      ],
+      "items": {
+        "type": [
+          "string"
+        ]
+      }
+    },
+    "hasAccess": {
+      "type": [
+        "boolean"
+      ]
+    },
+    "isPending": {
+      "type": [
+        "boolean"
+      ]
+    },
+    "memberCount": {
+      "type": [
         "integer"
       ]
     },
-    "name":{
-      "type":[
-        "null",
-        "string"
-      ]
-    },
-    "isMember":{
-      "type":[
-        "null",
-        "boolean"
-      ]
-    },
-    "hasAccess":{
-      "type":[
-        "null",
-        "boolean"
-      ]
-    },
-    "isPending":{
-      "type":[
-        "null",
-        "boolean"
-      ]
-    },
-    "dateCreated":{
-      "type":[
-        "null",
-        "string"
+    "avatar": {
+      "type": [
+        "object"
       ],
-      "format":"date-time"
+      "properties": {
+        "avatarType": {
+          "type": [
+            "string"
+          ]
+        },
+        "avatarUuid": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "avatarUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     },
-    "projects":{
-      "type":[
-        "null",
+    "externalTeams": {
+      "type": [
         "array"
       ],
-      "items":{
-        "type":[
-          "null",
+      "items": {
+        "type": [
           "object"
         ],
-        "properties":{
-          "status":{
-            "type":[
-              "null",
+        "properties": {
+          "externalId": {
+            "type": [
               "string"
             ]
           },
-          "features":{
-            "type":[
-              "null",
-              "array"
-            ]
-          },
-          "color":{
-            "type":[
-              "null",
+          "userId": {
+            "type": [
               "string"
             ]
           },
-          "isInternal":{
-            "type":[
-              "null",
-              "boolean"
-            ]
-          },
-          "isPublic":{
-            "type":[
-              "null",
-              "boolean"
-            ]
-          },
-          "dateCreated":{
-            "type":[
-              "null",
-              "string"
-            ],
-            "format":"date-time"
-          },
-          "id":{
-            "type":[
-              "null",
+          "teamId": {
+            "type": [
               "string"
             ]
           },
-          "slug":{
-            "type":[
-              "null",
+          "id": {
+            "type": [
               "string"
             ]
           },
-          "name":{
-            "type":[
-              "null",
+          "provider": {
+            "type": [
               "string"
             ]
           },
-          "hasAccess":{
-            "type":[
-              "null",
-              "boolean"
-            ]
-          },
-          "isBookmarked":{
-            "type":[
-              "null",
-              "boolean"
-            ]
-          },
-          "platform":{
-            "type":[
-              "null",
+          "externalName": {
+            "type": [
               "string"
             ]
           },
-          "firstEvent":{
-            "type":[
-              "null",
+          "integrationId": {
+            "type": [
               "string"
-            ],
-            "format":"date-time"
-          },
-          "avatar":{
-            "type":[
-              "null",
-              "object"
-            ],
-            "properties":{
-              "avatarUuid":{
-                "type":[
-                  "null",
-                  "string"
-                ]
-              },
-              "avatarType":{
-                "type":[
-                  "null",
-                  "string"
-                ]
-              }
-            }
-          },
-          "isMember":{
-            "type":[
-              "null",
-              "boolean"
             ]
           }
         }
       }
     },
-    "id":{
-      "type":[
-        "null",
-        "string"
-      ]
-    },
-    "avatar":{
-      "type":[
-        "null",
+    "organization": {
+      "type": [
         "object"
       ],
-      "properties":{
-        "avatarUuid":{
-          "type":[
-            "null",
+      "properties": {
+        "features": {
+          "type": [
+            "array"
+          ],
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        },
+        "extraOptions": {
+          "type": [
+            "object"
+          ]
+        },
+        "access": {
+          "type": [
+            "array"
+          ],
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        },
+        "onboardingTasks": {
+          "type": [
+            "array"
+          ],
+          "items": {
+            "type": [
+              "object"
+            ],
+            "properties": {
+              "task": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": [
+                  "string"
+                ]
+              },
+              "user": {
+                "type": [
+                  "null",
+                  "object"
+                ]
+              },
+              "completionSeen": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "dateCompleted": {
+                "type": [
+                  "string"
+                ],
+                "format": "date-time"
+              },
+              "data": {}
+            }
+          }
+        },
+        "id": {
+          "type": [
             "string"
           ]
         },
-        "avatarType":{
-          "type":[
-            "null",
+        "slug": {
+          "type": [
             "string"
+          ]
+        },
+        "status": {
+          "type": [
+            "object"
+          ],
+          "properties": {
+            "id": {
+              "type": [
+                "string"
+              ]
+            },
+            "name": {
+              "type": [
+                "string"
+              ]
+            }
+          }
+        },
+        "name": {
+          "type": [
+            "string"
+          ]
+        },
+        "dateCreated": {
+          "type": [
+            "string"
+          ],
+          "format": "date-time"
+        },
+        "isEarlyAdopter": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "require2FA": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "avatar": {
+          "type": [
+            "object"
+          ],
+          "properties": {
+            "avatarType": {
+              "type": [
+                "string"
+              ]
+            },
+            "avatarUuid": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "avatarUrl": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "links": {
+          "type": [
+            "object"
+          ],
+          "properties": {
+            "organizationUrl": {
+              "type": [
+                "string"
+              ]
+            },
+            "regionUrl": {
+              "type": [
+                "string"
+              ]
+            }
+          }
+        },
+        "hasAuthProvider": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "allowMemberInvite": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "allowMemberProjectCreation": {
+          "type": [
+            "boolean"
+          ]
+        },
+        "allowSuperuserAccess": {
+          "type": [
+            "boolean"
           ]
         }
       }
     },
-    "slug":{
-      "type":[
-        "null",
-        "string"
-      ]
+    "projects": {
+      "type": [
+        "array"
+      ],
+      "items": {
+        "type": [
+          "object"
+        ],
+        "properties": {
+          "stats": {},
+          "transactionStats": {},
+          "sessionStats": {},
+          "id": {
+            "type": [
+              "string"
+            ]
+          },
+          "slug": {
+            "type": [
+              "string"
+            ]
+          },
+          "name": {
+            "type": [
+              "string"
+            ]
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dateCreated": {
+            "type": [
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "isBookmarked": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "isMember": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "features": {
+            "type": [
+              "array"
+            ],
+            "items": {
+              "type": [
+                "string"
+              ]
+            }
+          },
+          "firstEvent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "firstTransactionEvent": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "access": {
+            "type": [
+              "array"
+            ],
+            "items": {
+              "type": [
+                "string"
+              ]
+            }
+          },
+          "hasAccess": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasFeedbacks": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasFlags": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasMinifiedStackTrace": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasMonitors": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasNewFeedbacks": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasProfiles": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasReplays": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasSessions": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasInsightsHttp": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasInsightsDb": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasInsightsAssets": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasInsightsAppStart": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasInsightsScreenLoad": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasInsightsVitals": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasInsightsCaches": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasInsightsQueues": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "hasInsightsLlmMonitoring": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "isInternal": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "isPublic": {
+            "type": [
+              "boolean"
+            ]
+          },
+          "avatar": {
+            "type": [
+              "object"
+            ],
+            "properties": {
+              "avatarType": {
+                "type": [
+                  "string"
+                ]
+              },
+              "avatarUuid": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "avatarUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "color": {
+            "type": [
+              "string"
+            ]
+          },
+          "status": {
+            "type": [
+              "string"
+            ]
+          }
+        }
+      }
+    },
+    "text_content": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Combined text content for search and embedding"
     }
-  },
-  "type":[
-    "null",
-    "object"
-  ]
+  }
 }

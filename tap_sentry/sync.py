@@ -27,10 +27,12 @@ class SentryAuthentication(requests.auth.AuthBase):
 
 
 class SentryClient:
-    def __init__(self, auth: SentryAuthentication, url="https://sentry.io/api/0/"):
+    def __init__(self, auth: SentryAuthentication, url="https://sentry.io/api/0/", organization="split-software"):
         self._base_url = url
         self._auth = auth
         self._session = None
+        self._organization = organization
+        LOGGER.debug(f"Initialized SentryClient with base URL: {url} and organization: {organization}")
 
     @property
     def session(self):
@@ -42,91 +44,114 @@ class SentryClient:
         return self._session
 
     def _get(self, path, params=None):
-        #url = urljoin(self._base_url, path)
         url = self._base_url + path
+        LOGGER.debug(f"Making GET request to: {url} with params: {params}")
         response = self.session.get(url, params=params)
+        LOGGER.debug(f"Response status: {response.status_code}")
         response.raise_for_status()
 
         return response
 
     def projects(self):
         try:
-            projects = self._get(f"/organizations/split-software/projects/")
+            url_path = f"/organizations/{self._organization}/projects/"
+            LOGGER.debug(f"Fetching projects from: {self._base_url + url_path}")
+            projects = self._get(url_path)
             return projects.json()
-        except:
+        except Exception as e:
+            LOGGER.debug(f"Error fetching projects: {str(e)}")
             return None
 
     def issues(self, project_id, state):
         try:
             bookmark = get_bookmark(state, "issues", "start")
-            query = f"/organizations/split-software/issues/?project={project_id}"
+            query = f"/organizations/{self._organization}/issues/?project={project_id}"
             if bookmark:
                 query += "&start=" + urllib.parse.quote(bookmark) + "&utc=true" + '&end=' + urllib.parse.quote(singer.utils.strftime(singer.utils.now()))
+            LOGGER.debug(f"Fetching issues from: {self._base_url + query}")
             response = self._get(query)
             issues = response.json()
             url= response.url
+            LOGGER.debug(f"Initial issues response URL: {url}")
             while (response.links is not None and response.links.__len__() >0  and response.links['next']['results'] == 'true'):
                 url = response.links['next']['url']
+                LOGGER.debug(f"Fetching next page of issues from: {url}")
                 response = self.session.get(url)
                 issues += response.json()
             return issues
 
-        except:
+        except Exception as e:
+            LOGGER.debug(f"Error fetching issues: {str(e)}")
             return None
 
     def events(self, project_id, state):
         try:
             bookmark = get_bookmark(state, "events", "start")
-            query = f"/organizations/split-software/events/?project={project_id}"
+            query = f"/organizations/{self._organization}/events/?project={project_id}"
             if bookmark:
                 query += "&start=" + urllib.parse.quote(bookmark) + "&utc=true" + '&end=' + urllib.parse.quote(singer.utils.strftime(singer.utils.now()))
+            LOGGER.debug(f"Fetching events from: {self._base_url + query}")
             response = self._get(query)
             events = response.json()
             url= response.url
+            LOGGER.debug(f"Initial events response URL: {url}")
             while (response.links is not None and response.links.__len__() >0  and response.links['next']['results'] == 'true'):
                 url = response.links['next']['url']
+                LOGGER.debug(f"Fetching next page of events from: {url}")
                 response = self.session.get(url)
                 events += response.json()
             return events
-        except:
+        except Exception as e:
+            LOGGER.debug(f"Error fetching events: {str(e)}")
             return None
 
     def teams(self, state):
         try:
-            response = self._get(f"/organizations/split-software/teams/")
+            url_path = f"/organizations/{self._organization}/teams/"
+            LOGGER.debug(f"Fetching teams from: {self._base_url + url_path}")
+            response = self._get(url_path)
             teams = response.json()
             extraction_time = singer.utils.now()
             while (response.links is not None and response.links.__len__() >0  and  response.links['next']['results'] == 'true'):
                 url = response.links['next']['url']
+                LOGGER.debug(f"Fetching next page of teams from: {url}")
                 response = self.session.get(url)
                 teams += response.json()
             return teams
-        except:
+        except Exception as e:
+            LOGGER.debug(f"Error fetching teams: {str(e)}")
             return None
 
     def users(self, state):
         try:
-            response = self._get(f"/organizations/split-software/users/")
+            url_path = f"/organizations/{self._organization}/users/"
+            LOGGER.debug(f"Fetching users from: {self._base_url + url_path}")
+            response = self._get(url_path)
             users = response.json()
             return users
-        except:
+        except Exception as e:
+            LOGGER.debug(f"Error fetching users: {str(e)}")
             return None
 
     def releases(self, project_id, state):
         try:
             bookmark = get_bookmark(state, "releases", "start")
-            query = f"/organizations/split-software/releases/?project={project_id}"
+            query = f"/organizations/{self._organization}/releases/?project={project_id}"
             if bookmark:
                 query += "&start=" + urllib.parse.quote(bookmark) + "&utc=true" + '&end=' + urllib.parse.quote(singer.utils.strftime(singer.utils.now()))
+            LOGGER.debug(f"Fetching releases from: {self._base_url + query}")
             response = self._get(query)
             releases = response.json()
             url = response.url
+            LOGGER.debug(f"Initial releases response URL: {url}")
             while (response.links is not None and response.links.__len__() > 0 and response.links['next']['results'] == 'true'):
                 url = response.links['next']['url']
+                LOGGER.debug(f"Fetching next page of releases from: {url}")
                 response = self.session.get(url)
                 releases += response.json()
             return releases
-        except:
+        except Exception as e:
+            LOGGER.debug(f"Error fetching releases: {str(e)}")
             return None
 
     async def fetch_single_data(self, url, headers):
@@ -356,13 +381,15 @@ class SentrySync:
                 try:
                     project_id = project.get("id")
                     project_slug = project.get("slug")
-                    org_slug = project.get("organization", {}).get("slug", "split-software")
+                    org_slug = project.get("organization", {}).get("slug", self.client._organization)
                     
                     LOGGER.info(f"Syncing details for project {project_slug}")
+                    LOGGER.debug(f"Project details - ID: {project_id}, slug: {project_slug}, org: {org_slug}")
                     
                     # Try to get detailed info
                     try:
                         detail_url = f"/projects/{org_slug}/{project_slug}/"
+                        LOGGER.debug(f"Fetching project details from: {self.client._base_url + detail_url}")
                         response = await asyncio.get_event_loop().run_in_executor(
                             None, self.client._get, detail_url
                         )
@@ -383,6 +410,7 @@ class SentrySync:
                             singer.metrics.record_counter(stream).increment()
                     except Exception as e:
                         LOGGER.error(f"Error fetching details for project {project_slug}: {e}")
+                        LOGGER.debug(f"Exception details: {str(e)}")
                         # Still try to use the basic project info
                         project['organization_slug'] = org_slug
                         singer.write_record(stream, project)
@@ -390,6 +418,7 @@ class SentrySync:
                         
                 except Exception as e:
                     LOGGER.error(f"Error processing project: {e}")
+                    LOGGER.debug(f"Exception details: {str(e)}")
                     continue
                 
             # If we didn't process any projects, log a clear message

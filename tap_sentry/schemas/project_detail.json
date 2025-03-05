@@ -188,7 +188,7 @@
             "type": ["boolean", "null"]
           },
           "sentry:replay_rage_click_issues": {
-            "type": ["integer", "null"]
+            "type": ["integer", "null", "boolean"]
           }
         }
       },

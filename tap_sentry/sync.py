@@ -56,7 +56,13 @@ class SentryClient:
         try:
             url_path = f"/organizations/{self._organization}/projects/"
             full_url = self._base_url + url_path
+            
+            # Keep the original debug message for backward compatibility with tests
+            LOGGER.debug(f"Fetching projects from: {full_url}")
+            
+            # And keep our new info message for better production logging
             LOGGER.info(f"Fetching projects from URL: {full_url}")
+            
             try:
                 LOGGER.debug(f"Making request with headers: {self.session.headers}")
                 projects = self._get(url_path)

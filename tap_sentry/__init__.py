@@ -27,9 +27,7 @@ def load_schemas():
         with open(path) as file:
             schemas[file_raw] = json.load(file)
 
-    # You might want to add some debug logging here to verify project_detail is loaded
-    # logger.debug(f"Loaded schemas: {list(schemas.keys())}")
-
+    LOGGER.debug(f"Loaded schemas: {list(schemas.keys())}")
     return schemas
 
 
@@ -96,12 +94,31 @@ def sync(config, state, catalog):
     # Use config values for base_url and organization or default values if not provided
     base_url = config.get("base_url", "https://sentry.io/api/0/")
     organization = config.get("organization", "split-software")
+    rate_limit = config.get("rate_limit", 10)  # Default to 10 requests per second
+
+    # Get sampling parameters
+    sample_fraction = config.get("sample_fraction")
+    max_events_per_project = config.get("max_events_per_project")
 
     # Create client with custom base_url and organization
-    client = SentryClient(auth, url=base_url, organization=organization)
+    client = SentryClient(
+        auth,
+        url=base_url,
+        organization=organization,
+        rate_limit=rate_limit,
+        sample_fraction=sample_fraction,
+        max_events_per_project=max_events_per_project,
+    )
 
     # Log configuration for debugging
-    LOGGER.info(f"Using Sentry API at: {base_url} for organization: {organization}")
+    LOGGER.debug(f"Using Sentry API at: {base_url} for organization: {organization}")
+    LOGGER.info(f"Rate limit set to: {rate_limit} requests per second")
+
+    # Log sampling configuration
+    if sample_fraction is not None:
+        LOGGER.info(f"Event sampling enabled with fraction: {sample_fraction}")
+    if max_events_per_project is not None:
+        LOGGER.info(f"Event limit enabled: {max_events_per_project} events per project")
 
     # Pass the config to SentrySync
     sync_instance = SentrySync(client, state, config)

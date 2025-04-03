@@ -71,9 +71,8 @@
       }
     },
     "id": {
-      "type": [
-        "string"
-      ]
+      "type": "string",
+      "description": "Primary identifier for the issue"
     },
     "slug": {
       "type": [
@@ -103,10 +102,19 @@
       ]
     },
     "dateCreated": {
-      "type": [
-        "string"
-      ],
-      "format": "date-time"
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the issue was created"
+    },
+    "dateUpdated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the issue was last updated"
+    },
+    "lastSeen": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the issue was last seen"
     },
     "isEarlyAdopter": {
       "type": [
@@ -186,5 +194,6 @@
       ],
       "description": "Combined text content for search and embedding"
     }
-  }
+  },
+  "required": ["id", "dateCreated", "dateUpdated", "lastSeen"]
 }

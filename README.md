@@ -17,7 +17,10 @@ This tap requires a `config.json` file which specifies:
   "api_token": "YOUR_SENTRY_API_TOKEN",
   "start_date": "2020-01-01T00:00:00Z",  // date to start syncing from
   "base_url": "https://sentry.io/api/0/",  // optional, default shown
-  "organization": "your-organization-slug"  // optional, defaults to "split-software"
+  "organization": "your-organization-slug",  // optional, defaults to "split-software"
+  "rate_limit": 10,  // optional, default is 10 requests per second
+  "sample_fraction": 0.1,  // optional, sample 10% of events
+  "max_events_per_project": 1000  // optional, limit to 1000 events per project
 }
 ```
 
@@ -31,6 +34,10 @@ To generate a Sentry API token, visit your Sentry organization settings and crea
 | start_date | Yes | | Date to start syncing data from (ISO-8601 format) |
 | base_url | No | https://sentry.io/api/0/ | Your Sentry instance URL (for self-hosted or regional instances) |
 | organization | No | split-software | Your Sentry organization slug |
+| rate_limit | No | 10 | Maximum number of API requests per second |
+| sample_fraction | No | None | Fraction of events to sample (0.0-1.0) |
+| max_events_per_project | No | None | Maximum number of events to fetch per project |
+| fetch_event_details | No | false | Whether to fetch detailed event data for each event |
 
 ## Usage
 
@@ -154,6 +161,26 @@ plugins:
           label: Sentry Organization
           description: Your Sentry organization slug
           value: 'split-software'
+        - name: rate_limit
+          kind: integer
+          label: Rate Limit
+          description: Maximum number of API requests per second
+          value: 10
+        - name: sample_fraction
+          kind: float
+          label: Sample Fraction
+          description: Fraction of events to sample (0.0-1.0)
+          value: null
+        - name: max_events_per_project
+          kind: integer
+          label: Max Events Per Project
+          description: Maximum number of events to fetch per project
+          value: null
+        - name: fetch_event_details
+          kind: boolean
+          label: Fetch Event Details
+          description: Whether to fetch detailed event data for each event
+          value: false
       select:
         - projects.*
         - issues.*
@@ -164,59 +191,15 @@ plugins:
         - project_detail.*
         - release.*
 ```
-# Sequence diagram
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Meltano
-    participant TapSentry
-    participant SentryAPI
-    participant TargetLightrag
+## Data Flow and Sequence Diagram
 
-    User->>Meltano: Run meltano elt tap-sentry target-lightrag
-    Note over Meltano: Loads meltano.yml config
-    
-    Meltano->>TapSentry: Initialize with config
-    Note over TapSentry: Config includes:<br/>- api_token<br/>- organization<br/>- project_slugs<br/>- start_date<br/>- fetch_event_details
-    
-    TapSentry->>SentryAPI: Authenticate
-    SentryAPI-->>TapSentry: Auth Success
-    
-    Note over TapSentry: API Endpoints:<br/>/organizations/{org}/projects/<br/>/projects/{org}/{project}/issues/<br/>/organizations/{org}/issues/{id}/<br/>/organizations/{org}/issues/{id}/events/
-    
-    loop For each project
-        TapSentry->>SentryAPI: GET /organizations/{org}/projects/
-        SentryAPI-->>TapSentry: Project list
-        
-        loop For each project
-            TapSentry->>SentryAPI: GET /projects/{org}/{project}/issues/
-            SentryAPI-->>TapSentry: Issue list
-            
-            loop For each issue
-                TapSentry->>SentryAPI: GET /organizations/{org}/issues/{id}/
-                SentryAPI-->>TapSentry: Issue details
-                
-                TapSentry->>SentryAPI: GET /organizations/{org}/issues/{id}/events/
-                SentryAPI-->>TapSentry: Issue events
-                
-                alt fetch_event_details is true
-                    loop For each event
-                        TapSentry->>SentryAPI: GET /projects/{org}/{project}/events/{event_id}/
-                        SentryAPI-->>TapSentry: Detailed event data
-                    end
-                end
-                
-                TapSentry->>TargetLightrag: Write records
-            end
-        end
-    end
-    
-    TapSentry->>Meltano: Update state
-    Meltano->>User: ELT process complete
+The following sequence diagram illustrates the data flow between components when using tap-sentry with Meltano:
 
-    Note over User,Meltano: State is preserved for<br/>incremental syncs
-``` 
+[View Sequence Diagram](meltano-sequence-diagram.md)
+
+This diagram shows how the tap interacts with the Sentry API and how rate limiting and sampling are applied to the data flow.
+
 ## Sentry API Endpoints
 
 The tap uses the following Sentry API endpoints:
@@ -314,4 +297,136 @@ python -m unittest discover tests
 ## License
 
 MIT
+
+## Rate Limiting
+
+This tap includes built-in rate limiting to prevent overwhelming the Sentry API. The rate limit can be configured using the `rate_limit` parameter in your configuration.
+
+### How Rate Limiting Works
+
+- The tap automatically spaces out API requests to maintain the specified rate
+- Default rate limit is 10 requests per second
+- You can adjust this value based on your needs:
+  - Lower values (1-5) for more conservative processing
+  - Higher values (10-20) for faster processing
+  - Match it to Sentry's API rate limits to maximize throughput
+
+### Logging Rate Limit Information
+
+When running with debug logging enabled, you'll see messages like:
 ```
+Rate limiting: sleeping for 0.050 seconds
+```
+
+This indicates that the tap is waiting to maintain the configured rate limit.
+
+### Adjusting Rate Limits
+
+If you're experiencing rate limit errors from the Sentry API, try reducing the rate limit value. Conversely, if you want to speed up the sync process and your API quota allows it, you can increase the rate limit.
+
+## Event Sampling
+
+This tap includes an event sampling mechanism to control data ingestion and ETL costs. When working with Sentry projects that produce a large volume of events, sampling can significantly reduce processing time and storage requirements.
+
+### Sampling Options
+
+You can configure event sampling in two ways:
+
+1. **Fractional Sampling**: Sample a percentage of all events
+   ```json
+   {
+     "sample_fraction": 0.1  // Sample 10% of events
+   }
+   ```
+
+2. **Maximum Event Limit**: Limit the number of events per project
+   ```json
+   {
+     "max_events_per_project": 1000  // Limit to 1000 events per project
+   }
+   ```
+
+You can use either option independently or combine them. When both are specified, the maximum limit is applied first, then the sampling fraction is applied to the limited set.
+
+### How Sampling Works
+
+The tap uses a random sampling approach to ensure a representative subset of events. Sampling is applied consistently to **both issue events and project events**:
+
+1. All events are fetched from the Sentry API as usual
+2. After fetching, the sampling logic is applied:
+   - If `max_events_per_project` is set, only the first N events are kept
+   - If `sample_fraction` is set, a random sample of the specified fraction is selected
+3. Only the sampled events are written to the target system
+
+The sampling is applied at two levels:
+- **Project Level**: When fetching events directly from a project
+- **Issue Level**: When fetching events associated with specific issues
+
+This ensures consistent sampling across all event sources, maintaining statistical representativeness.
+
+### Logging
+
+When sampling is enabled, the tap logs information about the sampling process:
+
+```
+Event sampling enabled with fraction: 0.1
+Total events fetched: 5000
+Sampling 500 out of 5000 events for project my-project (10.0%)
+After sampling: 500 events
+```
+
+The logs will show sampling information for both project events and issue events, giving you visibility into how sampling is affecting each event type.
+
+### Benefits of Event Sampling
+
+- **Reduced Processing Time**: Processing fewer events means faster ETL runs
+- **Lower Storage Costs**: Storing fewer events reduces data warehouse costs
+- **Focused Analysis**: Concentrate on the most important events
+- **API Efficiency**: Reduce the number of API calls for detailed event data
+- **Improved Reliability**: Less data to process means fewer potential points of failure
+- **Consistent Data**: Same sampling rules applied to all event types
+
+### Considerations
+
+- **Data Completeness**: Sampling reduces the total number of events processed, which may affect analysis that requires complete data
+- **Representativeness**: Random sampling provides a statistically representative subset, but may miss rare events
+- **API Usage**: The tap still fetches all events from the API before sampling, so API usage is not reduced
+- **Deterministic Results**: For reproducible results, consider setting a random seed in your environment
+- **Event Type Balance**: Sampling is applied uniformly across all event types, which may affect the relative proportion of different event types in your data
+
+### When to Use Sampling
+
+Sampling is recommended when:
+- You have projects with a very large number of events
+- You need to reduce ETL costs or processing time
+- Your analysis doesn't require every single event
+- You're hitting API rate limits or timeouts
+- You want to maintain a consistent dataset across different event types
+
+### Recommended Sampling Values
+
+For different scenarios, consider these sampling values:
+
+| Scenario | sample_fraction | max_events_per_project | Description |
+|----------|----------------|------------------------|-------------|
+| Development | 0.1 | 100 | Quick testing with minimal data |
+| Production (Balanced) | 0.2 | 1000 | Good balance of data volume and processing time |
+| Production (Detailed) | 0.5 | 5000 | More comprehensive data for important projects |
+| Production (Complete) | 1.0 | None | Process all events (no sampling) |
+
+### Adjusting Sampling Parameters
+
+You can adjust sampling parameters based on your needs:
+
+1. **For more data**: Increase `sample_fraction` or `max_events_per_project`
+2. **For faster processing**: Decrease `sample_fraction` or `max_events_per_project`
+3. **For specific projects**: Consider using different sampling values for different projects
+
+### Monitoring Sampling Effectiveness
+
+To monitor the effectiveness of your sampling strategy:
+
+1. Check the logs to see how many events are being sampled
+2. Compare the distribution of event types in sampled vs. complete data
+3. Verify that your analysis results are consistent with expectations
+4. Monitor sampling rates for both project events and issue events to ensure balanced representation

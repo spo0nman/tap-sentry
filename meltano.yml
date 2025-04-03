@@ -29,10 +29,39 @@ plugins:
           description: Your Sentry organization slug
           label: Sentry Organization
           value: 'split-software'
+        - name: rate_limit
+          kind: integer
+          description: Maximum number of API requests per second
+          label: Rate Limit
+          value: 10
+        - name: sample_fraction
+          kind: float
+          description: Fraction of events to sample (0.0-1.0)
+          label: Sample Fraction
+          value: 0.1
+        - name: max_events_per_project
+          kind: integer
+          description: Maximum number of events to fetch per project
+          label: Max Events Per Project
+          value: 1000
+        - name: fetch_event_details
+          kind: boolean
+          description: Whether to fetch detailed event data for each event
+          label: Fetch Event Details
+          value: false
+      config:
+        api_token: YOUR_SENTRY_API_TOKEN
+        start_date: '2020-01-01T00:00:00Z'
+        base_url: 'https://sentry.io/api/0/'
+        organization: 'split-software'
+        rate_limit: 5
+        sample_fraction: 0.1
+        max_events_per_project: 1000
+        fetch_event_details: false
       select:
         - projects.*
         - teams.*
         - events.*
         - issues.*
         - project_detail.*
-        - release.* 
+        - releases.* 

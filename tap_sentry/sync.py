@@ -111,6 +111,8 @@ class SentryClient:
     def events(self, project_id, state):
         try:
             bookmark = get_bookmark(state, "events", "start")
+            LOGGER.info(f"Starting events fetch with bookmark: {bookmark}")
+
             # Use project slug instead of project ID
             project_slug = None
             projects_list = self.projects()
@@ -118,10 +120,13 @@ class SentryClient:
                 for project in projects_list:
                     if project["id"] == project_id:
                         project_slug = project["slug"]
+                        LOGGER.info(
+                            f"Found project slug '{project_slug}' for project ID {project_id}"
+                        )
                         break
 
             if not project_slug:
-                LOGGER.warning(
+                LOGGER.error(
                     f"Could not find project slug for project ID: {project_id}"
                 )
                 return None
@@ -137,23 +142,34 @@ class SentryClient:
                     + "&end="
                     + urllib.parse.quote(singer.utils.strftime(singer.utils.now()))
                 )
-            LOGGER.debug(f"Fetching events from: {self._base_url + query}")
+
+            LOGGER.info(f"Making request to events endpoint: {self._base_url + query}")
             response = self._get(query)
             events = response.json()
+            LOGGER.info(f"Initial response contains {len(events)} events")
+
             url = response.url
             LOGGER.debug(f"Initial events response URL: {url}")
+
+            page_count = 1
             while (
                 response.links is not None
                 and response.links.__len__() > 0
                 and response.links["next"]["results"] == "true"
             ):
+                page_count += 1
                 url = response.links["next"]["url"]
-                LOGGER.debug(f"Fetching next page of events from: {url}")
+                LOGGER.info(f"Fetching page {page_count} of events from: {url}")
                 response = self.session.get(url)
-                events += response.json()
+                new_events = response.json()
+                events += new_events
+                LOGGER.info(f"Added {len(new_events)} events from page {page_count}")
+
+            LOGGER.info(f"Total events fetched: {len(events)}")
             return events
+
         except Exception as e:
-            LOGGER.debug(f"Error fetching events: {str(e)}")
+            LOGGER.error(f"Error fetching events: {str(e)}")
             return None
 
     def event_detail(self, organization_slug, project_slug, event_id):
@@ -443,38 +459,6 @@ class SentrySync:
                     singer.utils.strftime(extraction_time),
                 )
 
-    async def sync_users(self, schema, stream):
-        """Sync users from Sentry API."""
-        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
-            # Fix schema format
-            schema_dict = self._get_formatted_schema(schema)
-            singer.write_schema(stream, schema_dict, ["id"])
-
-            # Get users data from the client
-            LOGGER.info("Fetching users data")
-            extraction_time = singer.utils.now()
-
-            try:
-                users = await asyncio.get_event_loop().run_in_executor(
-                    None, self.client.users, self.state
-                )
-
-                if users:
-                    LOGGER.info(f"Found {len(users)} users to sync")
-                    # Process each user
-                    for user in users:
-                        singer.write_record(stream, user)
-                        singer.metrics.record_counter(stream).increment()
-                else:
-                    LOGGER.warning("No users found to sync")
-
-                # Update state with extraction time
-                self.state = singer.write_bookmark(
-                    self.state, stream, "start", singer.utils.strftime(extraction_time)
-                )
-            except Exception as e:
-                LOGGER.error(f"Error syncing users: {e}")
-
     async def sync_teams(self, schema, stream):
         """Sync teams from Sentry API."""
         with singer.metrics.job_timer(job_type=f"sync_{stream}"):
@@ -495,10 +479,35 @@ class SentrySync:
                     LOGGER.info(f"Found {len(teams)} teams to sync")
                     # Process each team
                     for team in teams:
-                        # Process the record to add text_content and handle ID conversion
-                        processed_team = self.process_record(stream, team)
-                        singer.write_record(stream, processed_team)
-                        singer.metrics.record_counter(stream).increment()
+                        # Get the previous state for this team
+                        team_id = team.get("id")
+                        previous_state = singer.get_bookmark(
+                            self.state, stream, team_id, {}
+                        )
+                        previous_member_count = previous_state.get("memberCount")
+                        current_member_count = team.get("memberCount")
+
+                        # Only sync if memberCount has changed or this is the first sync
+                        if (
+                            previous_member_count is None
+                            or previous_member_count != current_member_count
+                        ):
+                            # Process the record to add text_content and handle ID conversion
+                            processed_team = self.process_record(stream, team)
+                            singer.write_record(stream, processed_team)
+                            singer.metrics.record_counter(stream).increment()
+
+                            # Update the state with current memberCount
+                            self.state = singer.write_bookmark(
+                                self.state,
+                                stream,
+                                team_id,
+                                {"memberCount": current_member_count},
+                            )
+                        else:
+                            LOGGER.debug(
+                                f"Skipping team {team_id} - memberCount unchanged"
+                            )
                 else:
                     LOGGER.warning("No teams found to sync")
 
@@ -508,6 +517,75 @@ class SentrySync:
                 )
             except Exception as e:
                 LOGGER.error(f"Error syncing teams: {e}")
+
+    async def sync_users(self, schema, stream):
+        """Sync users from Sentry API."""
+        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
+            # Fix schema format
+            schema_dict = self._get_formatted_schema(schema)
+            singer.write_schema(stream, schema_dict, ["id"])
+
+            # Get users data from the client
+            LOGGER.info("Fetching users data")
+            extraction_time = singer.utils.now()
+
+            try:
+                users = await asyncio.get_event_loop().run_in_executor(
+                    None, self.client.users, self.state
+                )
+
+                if users:
+                    LOGGER.info(f"Found {len(users)} users to sync")
+                    # Process each user
+                    for user in users:
+                        # Get the previous state for this user
+                        user_id = user.get("id")
+                        previous_state = singer.get_bookmark(
+                            self.state, stream, user_id, {}
+                        )
+
+                        # Check if relevant fields have changed
+                        current_role = user.get("role")
+                        current_projects = sorted(user.get("projects", []))
+                        current_flags = user.get("flags", {})
+
+                        previous_role = previous_state.get("role")
+                        previous_projects = sorted(previous_state.get("projects", []))
+                        previous_flags = previous_state.get("flags", {})
+
+                        # Only sync if any of the tracked fields have changed
+                        if (
+                            previous_role != current_role
+                            or previous_projects != current_projects
+                            or previous_flags != current_flags
+                        ):
+                            singer.write_record(stream, user)
+                            singer.metrics.record_counter(stream).increment()
+
+                            # Update the state with current values
+                            self.state = singer.write_bookmark(
+                                self.state,
+                                stream,
+                                user_id,
+                                {
+                                    "role": current_role,
+                                    "projects": current_projects,
+                                    "flags": current_flags,
+                                },
+                            )
+                        else:
+                            LOGGER.debug(
+                                f"Skipping user {user_id} - no relevant changes"
+                            )
+                else:
+                    LOGGER.warning("No users found to sync")
+
+                # Update state with extraction time
+                self.state = singer.write_bookmark(
+                    self.state, stream, "start", singer.utils.strftime(extraction_time)
+                )
+            except Exception as e:
+                LOGGER.error(f"Error syncing users: {e}")
 
     async def sync_release(self, schema, stream):
         """Sync release data from Sentry API."""

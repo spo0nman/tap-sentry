@@ -44,18 +44,40 @@ class SentryClient:
     def _get(self, path, params=None):
         url = self._base_url + path
         LOGGER.debug(f"Making GET request to: {url} with params: {params}")
+        LOGGER.debug(f"Request headers: {self.session.headers}")
 
         # Use params argument for query parameters instead of appending to URL
         response = self.session.get(url, params=params)
         LOGGER.debug(f"Response status: {response.status_code}")
+        LOGGER.debug(f"Response headers: {response.headers}")
 
         # Log the full URL with parameters for debugging
         if params:
             full_url = response.url
             LOGGER.debug(f"Full URL with parameters: {full_url}")
 
-        response.raise_for_status()
-        return response
+        try:
+            response.raise_for_status()
+            # Log a sample of the response content for debugging
+            response_json = response.json()
+            if isinstance(response_json, list):
+                LOGGER.debug(f"Response is a list with {len(response_json)} items")
+                if len(response_json) > 0:
+                    LOGGER.debug(f"First item sample: {response_json[0]}")
+            elif isinstance(response_json, dict):
+                LOGGER.debug(f"Response keys: {list(response_json.keys())}")
+            return response
+        except requests.exceptions.HTTPError as e:
+            LOGGER.error(f"HTTP error occurred: {e}")
+            LOGGER.debug(f"Response content: {response.text}")
+            raise
+        except ValueError as e:
+            LOGGER.error(f"Error parsing JSON response: {e}")
+            LOGGER.debug(f"Raw response content: {response.text}")
+            raise
+        except Exception as e:
+            LOGGER.error(f"Unexpected error in _get: {e}")
+            raise
 
     def projects(self):
         try:
@@ -86,20 +108,48 @@ class SentryClient:
     def issues(self, project_id, state):
         try:
             bookmark = get_bookmark(state, "issues", "start")
-            query = f"/organizations/{self._organization}/issues/?project={project_id}"
-            if bookmark:
-                query += (
-                    "&start="
-                    + urllib.parse.quote(bookmark)
-                    + "&utc=true"
-                    + "&end="
-                    + urllib.parse.quote(singer.utils.strftime(singer.utils.now()))
+
+            # First, get the project slug for this project ID
+            project_slug = None
+            projects_list = self.projects()
+            if projects_list:
+                for project in projects_list:
+                    if project["id"] == project_id:
+                        project_slug = project["slug"]
+                        LOGGER.info(
+                            f"Found project slug '{project_slug}' for project ID {project_id}"
+                        )
+                        break
+
+            if not project_slug:
+                LOGGER.error(
+                    f"Could not find project slug for project ID: {project_id}"
                 )
+                return None
+
+            # Use the correct URL structure according to Sentry API documentation
+            # Format: /api/0/projects/{organization_slug}/{project_slug}/issues/
+            query = f"/projects/{self._organization}/{project_slug}/issues/"
+
+            # Add query parameters
+            params = {}
+            if bookmark:
+                params["start"] = bookmark
+                params["utc"] = "true"
+                params["end"] = singer.utils.strftime(singer.utils.now())
+
             LOGGER.debug(f"Fetching issues from: {self._base_url + query}")
-            response = self._get(query)
+            LOGGER.info(f"Making request to issues endpoint: {self._base_url + query}")
+            LOGGER.debug(f"With parameters: {params}")
+
+            response = self._get(query, params=params)
+            LOGGER.info(f"Issues API response status: {response.status_code}")
             issues = response.json()
+            LOGGER.info(f"Found {len(issues)} issues for project {project_slug}")
+
             url = response.url
             LOGGER.debug(f"Initial issues response URL: {url}")
+
             while (
                 response.links is not None
                 and response.links.__len__() > 0
@@ -108,11 +158,15 @@ class SentryClient:
                 url = response.links["next"]["url"]
                 LOGGER.debug(f"Fetching next page of issues from: {url}")
                 response = self.session.get(url)
-                issues += response.json()
+                new_issues = response.json()
+                LOGGER.info(f"Found {len(new_issues)} additional issues on next page")
+                issues += new_issues
+            LOGGER.info(f"Total issues found: {len(issues)}")
             return issues
 
         except Exception as e:
-            LOGGER.debug(f"Error fetching issues: {str(e)}")
+            LOGGER.error(f"Error fetching issues: {str(e)}")
+            LOGGER.debug(f"Exception details: {str(e)}")
             return None
 
     def event_detail(self, organization_slug, project_slug, event_id):
@@ -226,8 +280,38 @@ class SentryClient:
             )
 
             # Use the correct URL structure according to Sentry API documentation
-            # Format: /api/0/organizations/{organization_slug}/issues/{issue_id}/events/
-            query = f"/organizations/{organization_slug}/issues/{issue_id}/events/"
+            # Format: /api/0/projects/{organization_slug}/{project_slug}/issues/{issue_id}/events/
+            # First, we need to get the project slug for this issue
+            project_slug = None
+            projects_list = self.projects()
+            if projects_list:
+                for project in projects_list:
+                    # We need to find which project this issue belongs to
+                    # This is a bit tricky since we don't have a direct way to know
+                    # We'll try to fetch the issue first to get its project
+                    try:
+                        issue_query = (
+                            f"/organizations/{organization_slug}/issues/{issue_id}/"
+                        )
+                        issue_response = self._get(issue_query)
+                        if issue_response.status_code == 200:
+                            issue_data = issue_response.json()
+                            project_slug = issue_data.get("project", {}).get("slug")
+                            if project_slug:
+                                LOGGER.info(
+                                    f"Found project slug '{project_slug}' for issue {issue_id}"
+                                )
+                                break
+                    except Exception as e:
+                        LOGGER.warning(f"Error fetching issue details: {str(e)}")
+                        continue
+
+            if not project_slug:
+                LOGGER.error(f"Could not find project slug for issue {issue_id}")
+                return None
+
+            # Now construct the correct URL with organization and project slugs
+            query = f"/projects/{organization_slug}/{project_slug}/issues/{issue_id}/events/"
 
             # Add query parameters
             params = {}
@@ -425,24 +509,128 @@ class SentrySync:
             return None
 
     async def sync_issues(self, schema, stream):
-        """Sync issues from Sentry API."""
+        """Sync issues from Sentry API and their associated events."""
         with singer.metrics.job_timer(job_type=f"sync_{stream}"):
             # Fix schema format
             schema_dict = self._get_formatted_schema(schema)
             singer.write_schema(stream, schema_dict, ["id"])
 
+            # Also write schema for events since we'll be syncing them
+            events_schema = self._get_formatted_schema(
+                schema
+            )  # We'll need to update this with proper events schema
+            singer.write_schema("events", events_schema, ["eventID"])
+
             extraction_time = singer.utils.now()
             if self.projects:
-                for project in self.projects:
-                    issues = await asyncio.get_event_loop().run_in_executor(
-                        None, self.client.issues, project["id"], self.state
-                    )
-                    if issues:
-                        for issue in issues:
-                            singer.write_record(stream, issue)
+                loop = asyncio.get_event_loop()
 
+                for project in self.projects:
+                    project_id = project.get("id")
+                    project_slug = project.get("slug")
+                    LOGGER.info(f"Processing project {project_slug} (ID: {project_id})")
+
+                    try:
+                        issues = await loop.run_in_executor(
+                            None, self.client.issues, project_id, self.state
+                        )
+
+                        if issues:
+                            LOGGER.info(
+                                f"Found {len(issues)} issues for project {project_slug}"
+                            )
+                            for issue in issues:
+                                # Write the issue record
+                                singer.write_record(stream, issue)
+
+                                # Now fetch and write events for this issue
+                                issue_id = issue.get("id")
+                                if issue_id:
+                                    LOGGER.info(
+                                        f"Fetching events for issue {issue_id} in project {project_slug}"
+                                    )
+                                    issue_events = await loop.run_in_executor(
+                                        None,
+                                        self.client.issue_events,
+                                        self.client._organization,
+                                        issue_id,
+                                        self.state,
+                                    )
+
+                                    if issue_events:
+                                        LOGGER.info(
+                                            f"Found {len(issue_events)} events for issue {issue_id}"
+                                        )
+                                        for event in issue_events:
+                                            event_id = event.get("id") or event.get(
+                                                "eventID"
+                                            )
+                                            LOGGER.info(
+                                                f"Processing event {event_id} from issue {issue_id}"
+                                            )
+
+                                            # Add issue context to the event
+                                            event["issue_id"] = issue_id
+                                            event["issue_title"] = issue.get("title")
+
+                                            # Fetch detailed event data if enabled
+                                            if (
+                                                self.fetch_event_details
+                                                and event_id
+                                                and project_slug
+                                            ):
+                                                try:
+                                                    LOGGER.info(
+                                                        f"Fetching detailed data for event {event_id} in project {project_slug}"
+                                                    )
+                                                    detailed_event = (
+                                                        await loop.run_in_executor(
+                                                            None,
+                                                            self.client.event_detail,
+                                                            self.client._organization,
+                                                            project_slug,
+                                                            event_id,
+                                                        )
+                                                    )
+                                                    if detailed_event:
+                                                        event.update(detailed_event)
+                                                        LOGGER.info(
+                                                            f"Successfully merged detailed data for event {event_id}"
+                                                        )
+                                                    else:
+                                                        LOGGER.warning(
+                                                            f"No detailed data found for event {event_id}"
+                                                        )
+                                                except Exception as detail_e:
+                                                    LOGGER.error(
+                                                        f"Error fetching detailed data for event {event_id}: {str(detail_e)}"
+                                                    )
+
+                                            # Write the event to the stream
+                                            LOGGER.debug(
+                                                f"Writing event {event_id} to stream"
+                                            )
+                                            singer.write_record("events", event)
+                                    else:
+                                        LOGGER.warning(
+                                            f"No events found for issue {issue_id} in project {project_slug}"
+                                        )
+                        else:
+                            LOGGER.warning(
+                                f"No issues found for project {project_slug}"
+                            )
+                    except Exception as e:
+                        LOGGER.error(
+                            f"Error processing project {project_slug}: {str(e)}"
+                        )
+                        LOGGER.debug(f"Full exception details: {str(e)}", exc_info=True)
+
+            # Update state for both issues and events
             self.state = singer.write_bookmark(
                 self.state, "issues", "start", singer.utils.strftime(extraction_time)
+            )
+            self.state = singer.write_bookmark(
+                self.state, "events", "start", singer.utils.strftime(extraction_time)
             )
 
     async def sync_projects(self, schema, stream):
@@ -463,6 +651,7 @@ class SentrySync:
 
     async def sync_events(self, schema, stream):
         """Sync events from Sentry API by fetching them through issues."""
+        LOGGER.info("Starting sync_events method")
         with singer.metrics.job_timer(job_type=f"sync_{stream}"):
             # Fix schema format
             schema_dict = self._get_formatted_schema(schema)
@@ -470,24 +659,21 @@ class SentrySync:
 
             extraction_time = singer.utils.now()
             if self.projects:
+                LOGGER.info(f"Found {len(self.projects)} projects to process")
                 # Create a new event loop for async operations
                 loop = asyncio.get_event_loop()
 
                 projects_to_process = self.projects
-                LOGGER.info(
-                    f"Starting event sync for {len(projects_to_process)} projects"
-                )
-
                 for project in projects_to_process:
                     project_id = project.get("id")
                     project_slug = project.get("slug")
-                    LOGGER.info(
-                        f"Syncing events for project {project_slug} (ID: {project_id})"
-                    )
+                    LOGGER.info(f"Processing project {project_slug} (ID: {project_id})")
 
                     try:
                         # First, get all issues for this project
-                        LOGGER.info(f"Fetching issues for project {project_slug}")
+                        LOGGER.info(
+                            f"Fetching issues for project {project_slug} with state: {self.state}"
+                        )
                         issues = await loop.run_in_executor(
                             None, self.client.issues, project_id, self.state
                         )
@@ -496,8 +682,6 @@ class SentrySync:
                             LOGGER.info(
                                 f"Found {len(issues)} issues for project {project_slug}"
                             )
-
-                            # For each issue, fetch its events
                             for issue in issues:
                                 issue_id = issue.get("id")
                                 if not issue_id:
@@ -506,7 +690,9 @@ class SentrySync:
                                     )
                                     continue
 
-                                LOGGER.info(f"Fetching events for issue {issue_id}")
+                                LOGGER.info(
+                                    f"Fetching events for issue {issue_id} in project {project_slug}"
+                                )
                                 issue_events = await loop.run_in_executor(
                                     None,
                                     self.client.issue_events,
@@ -517,18 +703,21 @@ class SentrySync:
 
                                 if issue_events:
                                     LOGGER.info(
-                                        f"Retrieved {len(issue_events)} events for issue {issue_id}"
+                                        f"Found {len(issue_events)} events for issue {issue_id}"
                                     )
-
                                     for event in issue_events:
+                                        event_id = event.get("id") or event.get(
+                                            "eventID"
+                                        )
+                                        LOGGER.info(
+                                            f"Processing event {event_id} from issue {issue_id}"
+                                        )
+
                                         # Add issue context to the event
                                         event["issue_id"] = issue_id
                                         event["issue_title"] = issue.get("title")
 
                                         # Fetch detailed event data if enabled
-                                        event_id = event.get("id") or event.get(
-                                            "eventID"
-                                        )
                                         if (
                                             self.fetch_event_details
                                             and event_id
@@ -536,7 +725,7 @@ class SentrySync:
                                         ):
                                             try:
                                                 LOGGER.info(
-                                                    f"Fetching detailed data for event: {event_id}"
+                                                    f"Fetching detailed data for event {event_id} in project {project_slug}"
                                                 )
                                                 detailed_event = (
                                                     await loop.run_in_executor(
@@ -548,21 +737,27 @@ class SentrySync:
                                                     )
                                                 )
                                                 if detailed_event:
-                                                    # Merge detailed data with basic event data
                                                     event.update(detailed_event)
-                                                    LOGGER.debug(
-                                                        f"Using detailed data for event {event_id}"
+                                                    LOGGER.info(
+                                                        f"Successfully merged detailed data for event {event_id}"
+                                                    )
+                                                else:
+                                                    LOGGER.warning(
+                                                        f"No detailed data found for event {event_id}"
                                                     )
                                             except Exception as detail_e:
-                                                LOGGER.warning(
-                                                    f"Couldn't fetch detailed data for event {event_id}: {detail_e}"
+                                                LOGGER.error(
+                                                    f"Error fetching detailed data for event {event_id}: {str(detail_e)}"
                                                 )
 
                                         # Write the event to the stream
+                                        LOGGER.debug(
+                                            f"Writing event {event_id} to stream"
+                                        )
                                         singer.write_record(stream, event)
                                 else:
                                     LOGGER.warning(
-                                        f"No events found for issue {issue_id}"
+                                        f"No events found for issue {issue_id} in project {project_slug}"
                                     )
                         else:
                             LOGGER.warning(
@@ -570,9 +765,9 @@ class SentrySync:
                             )
                     except Exception as e:
                         LOGGER.error(
-                            f"Error syncing events for project {project_slug}: {e}"
+                            f"Error processing project {project_slug}: {str(e)}"
                         )
-                        LOGGER.debug(f"Exception details: {str(e)}")
+                        LOGGER.debug(f"Full exception details: {str(e)}", exc_info=True)
 
                 self.state = singer.write_bookmark(
                     self.state,
@@ -580,6 +775,7 @@ class SentrySync:
                     "start",
                     singer.utils.strftime(extraction_time),
                 )
+                LOGGER.info("Updated state bookmark for events stream")
             else:
                 LOGGER.warning("No projects found to sync events from")
 

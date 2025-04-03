@@ -252,49 +252,13 @@
         }
       }
     },
-    "links": {
-      "type": [
-        "object", "null"
-      ],
-      "properties": {
-        "organizationUrl": {
-          "type": [
-            "string", "null"
-          ]
-        },
-        "regionUrl": {
-          "type": [
-            "string", "null"
-          ]
-        }
-      }
+    "issue_id": {
+      "type": ["string", "null"],
+      "description": "The ID of the issue this event belongs to"
     },
-    "hasAuthProvider": {
-      "type": [
-        "boolean", "null"
-      ]
-    },
-    "allowMemberInvite": {
-      "type": [
-        "boolean", "null"
-      ]
-    },
-    "allowMemberProjectCreation": {
-      "type": [
-        "boolean", "null"
-      ]
-    },
-    "allowSuperuserAccess": {
-      "type": [
-        "boolean", "null"
-      ]
-    },
-    "text_content": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Combined text content for search and embedding"
+    "issue_title": {
+      "type": ["string", "null"],
+      "description": "The title of the issue this event belongs to"
     }
   }
 }

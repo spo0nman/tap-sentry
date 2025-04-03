@@ -164,10 +164,134 @@ plugins:
         - project_detail.*
         - release.*
 ```
+# Sequence diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Meltano
+    participant TapSentry
+    participant SentryAPI
+    participant TargetLightrag
+
+    User->>Meltano: Run meltano elt tap-sentry target-lightrag
+    Note over Meltano: Loads meltano.yml config
+    
+    Meltano->>TapSentry: Initialize with config
+    Note over TapSentry: Config includes:<br/>- api_token<br/>- organization<br/>- project_slugs<br/>- start_date<br/>- fetch_event_details
+    
+    TapSentry->>SentryAPI: Authenticate
+    SentryAPI-->>TapSentry: Auth Success
+    
+    Note over TapSentry: API Endpoints:<br/>/organizations/{org}/projects/<br/>/projects/{org}/{project}/issues/<br/>/organizations/{org}/issues/{id}/<br/>/organizations/{org}/issues/{id}/events/
+    
+    loop For each project
+        TapSentry->>SentryAPI: GET /organizations/{org}/projects/
+        SentryAPI-->>TapSentry: Project list
+        
+        loop For each project
+            TapSentry->>SentryAPI: GET /projects/{org}/{project}/issues/
+            SentryAPI-->>TapSentry: Issue list
+            
+            loop For each issue
+                TapSentry->>SentryAPI: GET /organizations/{org}/issues/{id}/
+                SentryAPI-->>TapSentry: Issue details
+                
+                TapSentry->>SentryAPI: GET /organizations/{org}/issues/{id}/events/
+                SentryAPI-->>TapSentry: Issue events
+                
+                alt fetch_event_details is true
+                    loop For each event
+                        TapSentry->>SentryAPI: GET /projects/{org}/{project}/events/{event_id}/
+                        SentryAPI-->>TapSentry: Detailed event data
+                    end
+                end
+                
+                TapSentry->>TargetLightrag: Write records
+            end
+        end
+    end
+    
+    TapSentry->>Meltano: Update state
+    Meltano->>User: ELT process complete
+
+    Note over User,Meltano: State is preserved for<br/>incremental syncs
+``` 
+## Sentry API Endpoints
+
+The tap uses the following Sentry API endpoints:
+
+1. **Projects List**
+   - Endpoint: `/organizations/{organization_slug}/projects/`
+   - Purpose: Fetch all projects for an organization
+
+2. **Project Issues**
+   - Endpoint: `/projects/{organization_slug}/{project_slug}/issues/`
+   - Purpose: Fetch all issues for a specific project
+
+3. **Issue Detail**
+   - Endpoint: `/organizations/{organization_slug}/issues/{issue_id}/`
+   - Purpose: Get detailed information about a specific issue
+
+4. **Issue Events**
+   - Endpoint: `/organizations/{organization_slug}/issues/{issue_id}/events/`
+   - Purpose: Get all events associated with a specific issue
+
+5. **Project Events**
+   - Endpoint: `/projects/{organization_slug}/{project_slug}/events/`
+   - Purpose: Get all events for a specific project
+
+6. **Event Detail**
+   - Endpoint: `/projects/{organization_slug}/{project_slug}/events/{event_id}/`
+   - Purpose: Get detailed information about a specific event
+
+7. **Teams**
+   - Endpoint: `/organizations/{organization_slug}/teams/`
+   - Purpose: Get all teams in an organization
+
+8. **Users**
+   - Endpoint: `/organizations/{organization_slug}/users/`
+   - Purpose: Get all users in an organization
+
+9. **Releases**
+   - Endpoint: `/organizations/{organization_slug}/releases/`
+   - Purpose: Get all releases for an organization
+
+## Data Flow
+
+1. The tap first fetches all projects for the configured organization
+2. For each project, it fetches all issues
+3. For each issue:
+   - Fetches issue details
+   - Fetches all events associated with the issue
+   - If `fetch_event_details` is enabled, fetches detailed data for each event
+4. All records are written to the target system
+5. State is maintained for incremental syncs
+
+## Error Handling
+
+The tap includes error handling for common HTTP errors:
+- 404 Not Found: Handled gracefully for missing resources
+- 429 Rate Limit: Included in tolerated errors
+- Other errors are logged with detailed information
+
+## Incremental Sync
+
+The tap supports incremental syncs using bookmarks for:
+- Issues
+- Events
+- Teams
+- Users
+- Releases
+
+Each stream maintains its own state to ensure efficient data extraction in subsequent runs.
 
 ## Limitations
 
-- API rate limits from Sentry may apply.
+1. Rate Limiting: Sentry API has rate limits that need to be respected
+2. Event History: Some events might not be available after a certain time period
+3. Project Access: The API token must have appropriate permissions for all projects
+4. Data Volume: Large organizations with many events might need to consider data volume and sync frequency
 
 ## Development
 

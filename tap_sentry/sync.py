@@ -6,6 +6,19 @@ from singer.bookmarks import get_bookmark
 
 LOGGER = singer.get_logger()
 
+# Global dictionary of Sentry API endpoints
+SENTRY_API_ENDPOINTS = {
+    "projects": "/organizations/{organization_slug}/projects/",
+    "project_issues": "/projects/{organization_slug}/{project_slug}/issues/",
+    "issue_detail": "/organizations/{organization_slug}/issues/{issue_id}/",
+    "issue_events": "/organizations/{organization_slug}/issues/{issue_id}/events/",
+    "project_events": "/projects/{organization_slug}/{project_slug}/events/",
+    "event_detail": "/projects/{organization_slug}/{project_slug}/events/{event_id}/",
+    "teams": "/organizations/{organization_slug}/teams/",
+    "users": "/organizations/{organization_slug}/users/",
+    "releases": "/organizations/{organization_slug}/releases/",
+}
+
 
 class SentryAuthentication(requests.auth.AuthBase):
     def __init__(self, api_token: str):
@@ -81,7 +94,9 @@ class SentryClient:
 
     def projects(self):
         try:
-            url_path = f"/organizations/{self._organization}/projects/"
+            url_path = SENTRY_API_ENDPOINTS["projects"].format(
+                organization_slug=self._organization
+            )
             full_url = self._base_url + url_path
 
             # Keep the original debug message for backward compatibility with tests
@@ -128,8 +143,9 @@ class SentryClient:
                 return None
 
             # Use the correct URL structure according to Sentry API documentation
-            # Format: /api/0/projects/{organization_slug}/{project_slug}/issues/
-            query = f"/projects/{self._organization}/{project_slug}/issues/"
+            query = SENTRY_API_ENDPOINTS["project_issues"].format(
+                organization_slug=self._organization, project_slug=project_slug
+            )
 
             # Add query parameters
             params = {}
@@ -182,8 +198,11 @@ class SentryClient:
         """
         try:
             # Construct the URL for event detail endpoint
-            # Format: /api/0/projects/{organization_slug}/{project_slug}/events/{event_id}/
-            path = f"/projects/{organization_slug}/{project_slug}/events/{event_id}/"
+            path = SENTRY_API_ENDPOINTS["event_detail"].format(
+                organization_slug=organization_slug,
+                project_slug=project_slug,
+                event_id=event_id,
+            )
             LOGGER.info(f"Fetching event detail from: {self._base_url + path}")
 
             response = self._get(path)
@@ -220,9 +239,10 @@ class SentryClient:
                 )
                 return None
 
-            # Use the correct URL structure according to Sentry API documentation
-            # Format: /api/0/projects/{organization_slug}/{project_slug}/events/
-            query = f"/projects/{self._organization}/{project_slug}/events/"
+            # Use the correct URL structure from SENTRY_API_ENDPOINTS
+            query = SENTRY_API_ENDPOINTS["project_events"].format(
+                organization_slug=self._organization, project_slug=project_slug
+            )
 
             # Add query parameters
             params = {}
@@ -279,39 +299,37 @@ class SentryClient:
                 f"Starting issue events fetch for issue {issue_id} with bookmark: {bookmark}"
             )
 
-            # Use the correct URL structure according to Sentry API documentation
-            # Format: /api/0/projects/{organization_slug}/{project_slug}/issues/{issue_id}/events/
-            # First, we need to get the project slug for this issue
-            project_slug = None
-            projects_list = self.projects()
-            if projects_list:
-                for project in projects_list:
-                    # We need to find which project this issue belongs to
-                    # This is a bit tricky since we don't have a direct way to know
-                    # We'll try to fetch the issue first to get its project
-                    try:
-                        issue_query = (
-                            f"/organizations/{organization_slug}/issues/{issue_id}/"
-                        )
-                        issue_response = self._get(issue_query)
-                        if issue_response.status_code == 200:
-                            issue_data = issue_response.json()
-                            project_slug = issue_data.get("project", {}).get("slug")
-                            if project_slug:
-                                LOGGER.info(
-                                    f"Found project slug '{project_slug}' for issue {issue_id}"
-                                )
-                                break
-                    except Exception as e:
-                        LOGGER.warning(f"Error fetching issue details: {str(e)}")
-                        continue
+            # First, get the issue details to verify it exists
+            issue_query = SENTRY_API_ENDPOINTS["issue_detail"].format(
+                organization_slug=organization_slug, issue_id=issue_id
+            )
 
-            if not project_slug:
-                LOGGER.error(f"Could not find project slug for issue {issue_id}")
+            try:
+                issue_response = self._get(issue_query)
+                if issue_response.status_code == 200:
+                    issue_data = issue_response.json()
+                    project_slug = issue_data.get("project", {}).get("slug")
+                    if not project_slug:
+                        LOGGER.error(
+                            f"Could not find project slug for issue {issue_id}"
+                        )
+                        return None
+                    LOGGER.info(
+                        f"Found project slug '{project_slug}' for issue {issue_id}"
+                    )
+                else:
+                    LOGGER.error(
+                        f"Error fetching issue details: {issue_response.status_code}"
+                    )
+                    return None
+            except Exception as e:
+                LOGGER.error(f"Error fetching issue details: {str(e)}")
                 return None
 
-            # Now construct the correct URL with organization and project slugs
-            query = f"/projects/{organization_slug}/{project_slug}/issues/{issue_id}/events/"
+            # Now construct the URL for issue events using the correct endpoint
+            query = SENTRY_API_ENDPOINTS["issue_events"].format(
+                organization_slug=organization_slug, issue_id=issue_id
+            )
 
             # Add query parameters
             params = {}
@@ -348,9 +366,7 @@ class SentryClient:
                 response = self.session.get(url)
                 new_events = response.json()
                 events += new_events
-                LOGGER.info(
-                    f"Added {len(new_events)} events from page {page_count} for issue {issue_id}"
-                )
+                LOGGER.info(f"Added {len(new_events)} events from page {page_count}")
 
             LOGGER.info(f"Total events fetched for issue {issue_id}: {len(events)}")
             return events

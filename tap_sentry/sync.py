@@ -139,6 +139,36 @@ class SentryClient:
             LOGGER.debug(f"Error fetching events: {str(e)}")
             return None
 
+    def event_detail(self, organization_slug, project_slug, event_id):
+        """Fetch detailed information for a specific event.
+
+        Args:
+            organization_slug: The organization slug
+            project_slug: The project slug
+            event_id: The specific event ID to fetch details for
+
+        Returns:
+            Detailed event data or None if there's an error
+        """
+        try:
+            # Construct the URL for event detail endpoint
+            # Format: /api/0/projects/{organization_slug}/{project_slug}/events/{event_id}/json/
+            path = (
+                f"/projects/{organization_slug}/{project_slug}/events/{event_id}/json/"
+            )
+            LOGGER.debug(f"Fetching event detail from: {self._base_url + path}")
+
+            response = self._get(path)
+            if response.status_code == 200:
+                LOGGER.info(f"Successfully fetched detailed event data for {event_id}")
+                return response.json()
+            else:
+                LOGGER.error(f"Error fetching event detail: {response.status_code}")
+                return None
+        except Exception as e:
+            LOGGER.error(f"Error fetching event detail for {event_id}: {str(e)}")
+            return None
+
     def teams(self, state):
         try:
             url_path = f"/organizations/{self._organization}/teams/"
@@ -220,10 +250,17 @@ class SentryClient:
 
 
 class SentrySync:
-    def __init__(self, client: SentryClient, state={}):
+    def __init__(self, client: SentryClient, state={}, config={}):
         self._client = client
         self._state = state
+        self._config = config
         self.projects = self.client.projects()
+
+        # Read config settings with defaults
+        self.fetch_event_details = self._config.get("fetch_event_details", False)
+        LOGGER.info(
+            f"Event detail fetching is {'enabled' if self.fetch_event_details else 'disabled'}"
+        )
 
     @property
     def client(self):
@@ -312,6 +349,41 @@ class SentrySync:
                         )
                         if events:
                             for event in events:
+                                # Option to fetch detailed event data if needed
+                                # If event_id and project slug are available, we could fetch detailed data
+                                event_id = event.get("id") or event.get("eventID")
+                                project_slug = project.get("slug")
+                                org_slug = self.client._organization
+
+                                # Fetch detailed event data only if the feature is enabled in config
+                                if (
+                                    self.fetch_event_details
+                                    and event_id
+                                    and project_slug
+                                    and org_slug
+                                ):
+                                    try:
+                                        LOGGER.info(
+                                            f"Fetching detailed data for event: {event_id}"
+                                        )
+                                        detailed_event = await loop.run_in_executor(
+                                            None,
+                                            self.client.event_detail,
+                                            org_slug,
+                                            project_slug,
+                                            event_id,
+                                        )
+                                        if detailed_event:
+                                            # Replace the basic event with detailed event
+                                            event = detailed_event
+                                            LOGGER.debug(
+                                                f"Using detailed data for event {event_id}"
+                                            )
+                                    except Exception as detail_e:
+                                        LOGGER.warning(
+                                            f"Couldn't fetch detailed data for event {event_id}: {detail_e}"
+                                        )
+
                                 singer.write_record(stream, event)
                     except Exception as e:
                         LOGGER.error(

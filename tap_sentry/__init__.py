@@ -74,7 +74,7 @@ def get_selected_streams(catalog):
 def create_sync_tasks(config, state, catalog):
     auth = SentryAuthentication(config["api_token"])
     client = SentryClient(auth)
-    sync = SentrySync(client, state)
+    sync = SentrySync(client, state, config)
 
     selected_stream_ids = get_selected_streams(catalog)
     sync_tasks = []
@@ -103,7 +103,8 @@ def sync(config, state, catalog):
     # Log configuration for debugging
     LOGGER.info(f"Using Sentry API at: {base_url} for organization: {organization}")
 
-    sync_instance = SentrySync(client, state)
+    # Pass the config to SentrySync
+    sync_instance = SentrySync(client, state, config)
 
     # Get selected streams
     selected_stream_ids = get_selected_streams(catalog)

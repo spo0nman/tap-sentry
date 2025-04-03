@@ -2,38 +2,153 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
+    "event_id": {
+      "type": ["string", "null"]
+    },
+    "eventID": {
+      "type": ["string", "null"]
+    },
+    "id": {
+      "type": ["string", "null"]
+    },
+    "project": {
+      "type": ["integer", "object", "null"]
+    },
+    "release": {
+      "type": ["string", "null"]
+    },
+    "dist": {
+      "type": ["string", "null"]
+    },
+    "platform": {
+      "type": ["string", "null"]
+    },
+    "message": {
+      "type": ["string", "null"]
+    },
+    "datetime": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "tags": {
+      "type": ["array", "null"],
+      "items": {
+        "type": ["array", "object", "null"]
+      }
+    },
+    "_dsc": {
+      "type": ["object", "null"]
+    },
+    "_metrics": {
+      "type": ["object", "null"]
+    },
+    "breadcrumbs": {
+      "type": ["object", "null"]
+    },
+    "contexts": {
+      "type": ["object", "null"]
+    },
+    "culprit": {
+      "type": ["string", "null"]
+    },
+    "debug_meta": {
+      "type": ["object", "null"]
+    },
+    "environment": {
+      "type": ["string", "null"]
+    },
+    "exception": {
+      "type": ["object", "null"]
+    },
+    "fingerprint": {
+      "type": ["array", "null"]
+    },
+    "grouping_config": {
+      "type": ["object", "null"]
+    },
+    "hashes": {
+      "type": ["array", "null"]
+    },
+    "ingest_path": {
+      "type": ["array", "null"]
+    },
+    "key_id": {
+      "type": ["string", "null"]
+    },
+    "level": {
+      "type": ["string", "null"]
+    },
+    "location": {
+      "type": ["string", "null"]
+    },
+    "logger": {
+      "type": ["string", "null"]
+    },
+    "metadata": {
+      "type": ["object", "null"]
+    },
+    "nodestore_insert": {
+      "type": ["number", "null"]
+    },
+    "received": {
+      "type": ["number", "null"]
+    },
+    "scraping_attempts": {
+      "type": ["array", "null"]
+    },
+    "sdk": {
+      "type": ["object", "null"]
+    },
+    "timestamp": {
+      "type": ["number", "null"]
+    },
+    "title": {
+      "type": ["string", "null"]
+    },
+    "transaction": {
+      "type": ["string", "null"]
+    },
+    "type": {
+      "type": ["string", "null"]
+    },
+    "user": {
+      "type": ["object", "null"]
+    },
+    "version": {
+      "type": ["string", "null"]
+    },
     "features": {
       "type": [
-        "array"
+        "array", "null"
       ],
       "items": {
         "type": [
-          "string"
+          "string", "null"
         ]
       }
     },
     "extraOptions": {
       "type": [
-        "object"
+        "object", "null"
       ]
     },
     "access": {
       "type": [
-        "array"
+        "array", "null"
       ],
       "items": {
         "type": [
-          "string"
+          "string", "null"
         ]
       }
     },
     "onboardingTasks": {
       "type": [
-        "array"
+        "array", "null"
       ],
       "items": {
         "type": [
-          "object"
+          "object", "null"
         ],
         "properties": {
           "task": {
@@ -44,7 +159,7 @@
           },
           "status": {
             "type": [
-              "string"
+              "string", "null"
             ]
           },
           "user": {
@@ -62,7 +177,7 @@
           },
           "dateCompleted": {
             "type": [
-              "string"
+              "string", "null"
             ],
             "format": "date-time"
           },
@@ -70,62 +185,57 @@
         }
       }
     },
-    "id": {
-      "type": [
-        "string"
-      ]
-    },
     "slug": {
       "type": [
-        "string"
+        "string", "null"
       ]
     },
     "status": {
       "type": [
-        "object"
+        "object", "null"
       ],
       "properties": {
         "id": {
           "type": [
-            "string"
+            "string", "null"
           ]
         },
         "name": {
           "type": [
-            "string"
+            "string", "null"
           ]
         }
       }
     },
     "name": {
       "type": [
-        "string"
+        "string", "null"
       ]
     },
     "dateCreated": {
       "type": [
-        "string"
+        "string", "null"
       ],
       "format": "date-time"
     },
     "isEarlyAdopter": {
       "type": [
-        "boolean"
+        "boolean", "null"
       ]
     },
     "require2FA": {
       "type": [
-        "boolean"
+        "boolean", "null"
       ]
     },
     "avatar": {
       "type": [
-        "object"
+        "object", "null"
       ],
       "properties": {
         "avatarType": {
           "type": [
-            "string"
+            "string", "null"
           ]
         },
         "avatarUuid": {
@@ -144,39 +254,39 @@
     },
     "links": {
       "type": [
-        "object"
+        "object", "null"
       ],
       "properties": {
         "organizationUrl": {
           "type": [
-            "string"
+            "string", "null"
           ]
         },
         "regionUrl": {
           "type": [
-            "string"
+            "string", "null"
           ]
         }
       }
     },
     "hasAuthProvider": {
       "type": [
-        "boolean"
+        "boolean", "null"
       ]
     },
     "allowMemberInvite": {
       "type": [
-        "boolean"
+        "boolean", "null"
       ]
     },
     "allowMemberProjectCreation": {
       "type": [
-        "boolean"
+        "boolean", "null"
       ]
     },
     "allowSuperuserAccess": {
       "type": [
-        "boolean"
+        "boolean", "null"
       ]
     },
     "text_content": {

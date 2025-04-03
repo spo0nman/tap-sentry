@@ -49,7 +49,18 @@ class SentryClient:
         self._organization = organization
         self._rate_limit = rate_limit
         self._last_request_time = 0
-        self._sample_fraction = sample_fraction
+
+        # Convert sample_fraction to float if it's a string
+        if sample_fraction is not None and isinstance(sample_fraction, str):
+            try:
+                self._sample_fraction = float(sample_fraction)
+            except ValueError:
+                raise ValueError(
+                    f"Invalid sample_fraction value: {sample_fraction}. Must be a number between 0.0 and 1.0"
+                )
+        else:
+            self._sample_fraction = sample_fraction
+
         self._max_events_per_project = max_events_per_project
         self._state = state
         self._projects = projects

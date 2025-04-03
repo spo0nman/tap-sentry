@@ -111,7 +111,24 @@ class SentryClient:
     def events(self, project_id, state):
         try:
             bookmark = get_bookmark(state, "events", "start")
-            query = f"/organizations/{self._organization}/events/?project={project_id}"
+            # Use project slug instead of project ID
+            project_slug = None
+            projects_list = self.projects()
+            if projects_list:
+                for project in projects_list:
+                    if project["id"] == project_id:
+                        project_slug = project["slug"]
+                        break
+
+            if not project_slug:
+                LOGGER.warning(
+                    f"Could not find project slug for project ID: {project_id}"
+                )
+                return None
+
+            query = (
+                f"/organizations/{self._organization}/events/?project={project_slug}"
+            )
             if bookmark:
                 query += (
                     "&start="

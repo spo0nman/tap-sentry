@@ -188,10 +188,19 @@ class SentryClient:
 
     def teams(self, state):
         try:
+            bookmark = get_bookmark(state, "teams", "start")
             url_path = f"/organizations/{self._organization}/teams/"
+
+            # Add date filtering if bookmark exists
+            if bookmark:
+                url_path += f"?start={urllib.parse.quote(bookmark)}&utc=true&end={urllib.parse.quote(singer.utils.strftime(singer.utils.now()))}"
+
             LOGGER.debug(f"Fetching teams from: {self._base_url + url_path}")
             response = self._get(url_path)
             teams = response.json()
+            url = response.url
+            LOGGER.debug(f"Initial teams response URL: {url}")
+
             while (
                 response.links is not None
                 and response.links.__len__() > 0
@@ -208,10 +217,29 @@ class SentryClient:
 
     def users(self, state):
         try:
+            bookmark = get_bookmark(state, "users", "start")
             url_path = f"/organizations/{self._organization}/users/"
+
+            # Add date filtering if bookmark exists
+            if bookmark:
+                url_path += f"?start={urllib.parse.quote(bookmark)}&utc=true&end={urllib.parse.quote(singer.utils.strftime(singer.utils.now()))}"
+
             LOGGER.debug(f"Fetching users from: {self._base_url + url_path}")
             response = self._get(url_path)
             users = response.json()
+            url = response.url
+            LOGGER.debug(f"Initial users response URL: {url}")
+
+            # Handle pagination if available
+            while (
+                response.links is not None
+                and response.links.__len__() > 0
+                and response.links["next"]["results"] == "true"
+            ):
+                url = response.links["next"]["url"]
+                LOGGER.debug(f"Fetching next page of users from: {url}")
+                response = self.session.get(url)
+                users += response.json()
             return users
         except Exception as e:
             LOGGER.debug(f"Error fetching users: {str(e)}")
@@ -236,6 +264,7 @@ class SentryClient:
             releases = response.json()
             url = response.url
             LOGGER.debug(f"Initial releases response URL: {url}")
+
             while (
                 response.links is not None
                 and response.links.__len__() > 0
@@ -423,6 +452,8 @@ class SentrySync:
 
             # Get users data from the client
             LOGGER.info("Fetching users data")
+            extraction_time = singer.utils.now()
+
             try:
                 users = await asyncio.get_event_loop().run_in_executor(
                     None, self.client.users, self.state
@@ -436,6 +467,11 @@ class SentrySync:
                         singer.metrics.record_counter(stream).increment()
                 else:
                     LOGGER.warning("No users found to sync")
+
+                # Update state with extraction time
+                self.state = singer.write_bookmark(
+                    self.state, stream, "start", singer.utils.strftime(extraction_time)
+                )
             except Exception as e:
                 LOGGER.error(f"Error syncing users: {e}")
 
@@ -448,6 +484,8 @@ class SentrySync:
 
             # Get teams data from the client
             LOGGER.info("Fetching teams data")
+            extraction_time = singer.utils.now()
+
             try:
                 teams = await asyncio.get_event_loop().run_in_executor(
                     None, self.client.teams, self.state
@@ -463,6 +501,11 @@ class SentrySync:
                         singer.metrics.record_counter(stream).increment()
                 else:
                     LOGGER.warning("No teams found to sync")
+
+                # Update state with extraction time
+                self.state = singer.write_bookmark(
+                    self.state, stream, "start", singer.utils.strftime(extraction_time)
+                )
             except Exception as e:
                 LOGGER.error(f"Error syncing teams: {e}")
 

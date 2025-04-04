@@ -640,325 +640,173 @@ class SentryClient:
             return None
 
     async def sync_events(self, schema, stream):
-        """Sync events from Sentry API following the hierarchical flow:
-        projects -> project events -> issues -> issue events.
+        """Sync events from Sentry API."""
+        with singer.metrics.job_timer(job_type=f"sync_{stream}"):
+            # Fix schema format
+            schema_dict = self._get_formatted_schema(schema)
+            singer.write_schema(stream, schema_dict, ["id"])
 
-        Implements sampling and rate limiting at each level as per sequence diagram.
-        """
-        stream = "events"
-        last_extraction_time = None
-        total_event_counts = {}
-        # Use class-level set instead of creating a local one
-        # processed_event_ids = set()  # Track processed event IDs to avoid duplicates
+            extraction_time = singer.utils.now()
+            if self.projects:
+                loop = asyncio.get_event_loop()
 
-        # Fix schema format and write schema
-        schema_dict = self._get_formatted_schema(schema)
-        singer.write_schema(stream, schema_dict, ["id"])
+                # Track event counts for summary
+                event_counts = {}
 
-        # Initialize rate limiter with configured rate_limit
-        LOGGER.info(f"Initializing rate limiter with rate_limit: {self._rate_limit}")
-        self._last_request_time = 0
-
-        # Get projects - either from config or fetch all
-        projects_to_process = []
-        if self._projects:
-            projects_to_process = [
-                p for p in self.projects() if p["slug"] in self._projects
-            ]
-        else:
-            projects_to_process = self.projects()
-
-        if not projects_to_process:
-            LOGGER.warning("No projects found to process")
-            return
-
-        LOGGER.info(f"Found {len(projects_to_process)} projects to process")
-
-        for project in projects_to_process:
-            project_slug = project.get("slug")
-            project_id = project.get("id")
-
-            LOGGER.info(f"Processing project {project_slug}")
-
-            # Get project-specific bookmark
-            # project_bookmark = self.get_bookmark("events", project_id)
-            issue_event_counts = {}
-            project_event_count = 0
-
-            # 1. Sync project-level events
-            LOGGER.info(f"Syncing project-level events for {project_slug}")
-
-            # Apply rate limiting before API request
-            self._wait_for_rate_limit()
-
-            # Fetch project events
-            project_events = await asyncio.get_event_loop().run_in_executor(
-                None,
-                self.client.project_events,
-                self._organization,
-                project_slug,
-                self.state,
-            )
-
-            if project_events:
-                LOGGER.info(
-                    f"Found {len(project_events)} project events for {project_slug}"
-                )
-
-                # Apply sampling to project events if configured
-                if self._sample_fraction is not None:
+                # Get list of events already processed through issues
+                processed_events = set()
+                if (
+                    "metadata" in self._state
+                    and "processed_events" in self._state["metadata"]
+                ):
+                    processed_events = set(self._state["metadata"]["processed_events"])
                     LOGGER.info(
-                        f"Applying sampling to project events for {project_slug}"
-                    )
-                    project_events = self._apply_sampling(
-                        project_events, f"project events for {project_slug}"
-                    )
-                    LOGGER.info(
-                        f"After sampling: {len(project_events)} project events for {project_slug}"
+                        f"Found {len(processed_events)} events already processed through issues"
                     )
 
-                # Process each project event
-                for event in project_events:
-                    event_id = event.get("id") or event.get("eventID")
+                for project in self.projects:
+                    project_id = project.get("id")
+                    project_slug = project.get("slug")
 
-                    # Skip if we've already processed this event
-                    if event_id in self._processed_event_ids:
-                        LOGGER.info(f"Skipping duplicate event {event_id}")
-                        continue
+                    LOGGER.info(f"Fetching events for project {project_slug}")
 
-                    self._processed_event_ids.add(event_id)
-                    project_event_count += 1
-                    extraction_time = singer.utils.now()
+                    # Get project-specific bookmark
+                    project_bookmark = singer.get_bookmark(
+                        self._state, stream, project_id, {}
+                    ).get("start")
 
-                    # Add project context
-                    event["project_slug"] = project_slug
-                    event["event_type"] = "project"
+                    if project_bookmark:
+                        LOGGER.info(
+                            f"Starting event sync for project {project_slug} from bookmark: {project_bookmark}"
+                        )
+                    else:
+                        LOGGER.info(
+                            f"No project bookmark found for {project_slug}, performing full sync"
+                        )
 
-                    # Write initial event record
-                    singer.write_record(stream, event, time_extracted=extraction_time)
-                    LOGGER.info(f"Wrote project event {event_id} for {project_slug}")
+                    # Fetch project events
+                    events = await loop.run_in_executor(
+                        None,
+                        self.events,
+                        project_id,
+                        self._state,
+                    )
 
-                    # Fetch detailed event data if enabled (separate step as per diagram)
-                    if self.fetch_event_details and event_id:
-                        try:
-                            # Apply rate limiting before API request
-                            self._wait_for_rate_limit()
+                    if events:
+                        # Filter out events already processed through issues
+                        events = [
+                            event
+                            for event in events
+                            if event.get("id") not in processed_events
+                        ]
+                        LOGGER.info(
+                            f"After filtering processed events: {len(events)} events for project {project_slug}"
+                        )
 
-                            detailed_event = (
-                                await asyncio.get_event_loop().run_in_executor(
-                                    None,
-                                    self.client.event_detail,
-                                    self._organization,
-                                    project_slug,
-                                    event_id,
-                                )
+                        # Apply sampling if configured
+                        if self._sample_fraction is not None:
+                            LOGGER.info(
+                                f"Applying sampling to events for project {project_slug}"
                             )
-                            if detailed_event:
-                                # Update event with detailed data and write again
-                                event.update(detailed_event)
-                                singer.write_record(
-                                    stream, event, time_extracted=extraction_time
-                                )
-                                LOGGER.info(
-                                    f"Updated project event {event_id} with detailed data"
-                                )
-                        except Exception as e:
-                            LOGGER.error(
-                                f"Error fetching project event detail for {event_id}: {str(e)}"
+                            events = self._apply_sampling(events, project_slug)
+                            LOGGER.info(
+                                f"After sampling: {len(events)} events for project {project_slug}"
                             )
 
-                    last_extraction_time = extraction_time
-
-                LOGGER.info(
-                    f"Processed {project_event_count} project-level events for {project_slug}"
-                )
-
-            # 2. Sync issue-level events
-            # Apply rate limiting before API request
-            self._wait_for_rate_limit()
-
-            # Fetch issues for this project
-            issues = await asyncio.get_event_loop().run_in_executor(
-                None, self.client.issues, project_id, self.state
-            )
-
-            if not issues:
-                LOGGER.warning(f"No issues found for project {project_slug}")
-                continue
-
-            LOGGER.info(f"Found {len(issues)} issues for project {project_slug}")
-
-            # Apply sampling at issues level if configured
-            if self._sample_fraction is not None:
-                LOGGER.info(f"Applying sampling to issues for project {project_slug}")
-                issues = self._apply_sampling(issues, f"issues for {project_slug}")
-                LOGGER.info(
-                    f"After sampling: {len(issues)} issues for project {project_slug}"
-                )
-
-            for issue in issues:
-                issue_id = issue["id"]
-                # issue_bookmark = self.get_bookmark("issue_events", issue_id)
-
-                LOGGER.info(f"Processing events for issue {issue_id}")
-                event_count = 0
-
-                # Apply rate limiting before API request
-                self._wait_for_rate_limit()
-
-                # Fetch events for this issue
-                events = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    self.client.issue_events,
-                    self._organization,
-                    issue_id,
-                    self.state,
-                )
-
-                if not events:
-                    LOGGER.warning(f"No events found for issue {issue_id}")
-                    continue
-
-                LOGGER.info(f"Found {len(events)} events for issue {issue_id}")
-
-                # Apply sampling at events level
-                if self._sample_fraction is not None:
-                    LOGGER.info(f"Applying sampling to events for issue {issue_id}")
-                    events = self._apply_sampling(
-                        events, f"events for issue {issue_id}"
-                    )
-                    LOGGER.info(
-                        f"After sampling: {len(events)} events for issue {issue_id}"
-                    )
-
-                for event in events:
-                    event_id = event.get("id") or event.get("eventID")
-
-                    # Skip if we've already processed this event
-                    if event_id in self._processed_event_ids:
-                        LOGGER.info(f"Skipping duplicate event {event_id}")
-                        continue
-
-                    self._processed_event_ids.add(event_id)
-                    event_count += 1
-                    extraction_time = singer.utils.now()
-
-                    # Add context
-                    event["issue_id"] = issue_id
-                    event["issue_title"] = issue.get("title")
-                    event["project_slug"] = project_slug
-                    event["event_type"] = "issue"
-
-                    # Write initial event record
-                    singer.write_record(stream, event, time_extracted=extraction_time)
-                    LOGGER.info(f"Wrote issue event {event_id} for issue {issue_id}")
-
-                    # Fetch detailed event data if enabled (separate step as per diagram)
-                    if self.fetch_event_details and event_id:
-                        try:
-                            # Apply rate limiting before API request
-                            self._wait_for_rate_limit()
-
-                            detailed_event = (
-                                await asyncio.get_event_loop().run_in_executor(
-                                    None,
-                                    self.client.event_detail,
-                                    self._organization,
-                                    project_slug,
-                                    event_id,
-                                )
+                        # Apply max events limit if configured
+                        if (
+                            self._max_events_per_project is not None
+                            and len(events) > self._max_events_per_project
+                        ):
+                            LOGGER.info(
+                                f"Limiting events for project {project_slug} to {self._max_events_per_project}"
                             )
-                            if detailed_event:
-                                # Update event with detailed data and write again
-                                event.update(detailed_event)
-                                singer.write_record(
-                                    stream, event, time_extracted=extraction_time
-                                )
-                                LOGGER.info(
-                                    f"Updated issue event {event_id} with detailed data"
-                                )
-                        except Exception as e:
-                            LOGGER.error(
-                                f"Error fetching issue event detail for {event_id}: {str(e)}"
+                            events = events[: self._max_events_per_project]
+
+                        event_count = len(events)
+                        LOGGER.info(
+                            f"Found {event_count} events for project {project_slug}"
+                        )
+
+                        # Track event count for this project
+                        event_counts[project_slug] = event_count
+
+                        for event in events:
+                            event_id = event.get("id") or event.get("eventID")
+                            LOGGER.debug(
+                                f"Processing event {event_id} from project {project_slug}"
                             )
 
-                    # Update issue-specific bookmark
-                    self.write_bookmark(
-                        "issue_events",
-                        issue_id,
+                            # Add project context
+                            event["project_slug"] = project_slug
+                            event["project_id"] = project_id
+                            event["event_type"] = "project"
+
+                            # Fetch detailed event data if enabled
+                            if self.fetch_event_details and event_id:
+                                try:
+                                    LOGGER.debug(
+                                        f"Fetching detailed data for event {event_id} in project {project_slug}"
+                                    )
+                                    detailed_event = await loop.run_in_executor(
+                                        None,
+                                        self.event_detail,
+                                        self._organization,
+                                        project_slug,
+                                        event_id,
+                                    )
+                                    if detailed_event:
+                                        event.update(detailed_event)
+                                        LOGGER.debug(
+                                            f"Successfully merged detailed data for event {event_id}"
+                                        )
+                                    else:
+                                        LOGGER.warning(
+                                            f"No detailed data found for event {event_id}"
+                                        )
+                                except Exception as detail_e:
+                                    LOGGER.error(
+                                        f"Error fetching detailed data for event {event_id}: {str(detail_e)}"
+                                    )
+
+                            # Write the event to the stream
+                            LOGGER.debug(f"Writing event {event_id} to stream")
+                            singer.write_record(stream, event)
+
+                            # Update event-specific bookmark
+                            self._state = singer.write_bookmark(
+                                self._state,
+                                stream,
+                                event_id,
+                                {"start": singer.utils.strftime(extraction_time)},
+                            )
+                    else:
+                        LOGGER.warning(f"No events found for project {project_slug}")
+
+                    # Update project-specific bookmark
+                    self._state = singer.write_bookmark(
+                        self._state,
+                        stream,
+                        project_id,
                         {"start": singer.utils.strftime(extraction_time)},
-                        {"event_count": event_count},
                     )
 
-                    last_extraction_time = extraction_time
+            # Update global bookmark
+            self._state = singer.write_bookmark(
+                self._state, stream, "start", singer.utils.strftime(extraction_time)
+            )
 
-                issue_event_counts[issue_id] = event_count
-                LOGGER.info(f"Processed {event_count} events for issue {issue_id}")
-
-            # Update project totals including both project and issue events
-            total_event_counts[project_slug] = {
-                "total_issues": len(issue_event_counts),
-                "total_issue_events": sum(issue_event_counts.values()),
-                "total_project_events": project_event_count,
-                "total_events": project_event_count + sum(issue_event_counts.values()),
-                "issue_event_counts": issue_event_counts,
+            # Add metadata to state
+            self._state["metadata"] = {
+                "last_sync": singer.utils.strftime(extraction_time),
+                "sync_type": "full",
+                "streams_synced": ["events"],
+                "projects_processed": [p.get("slug") for p in self.projects]
+                if self.projects
+                else [],
+                "events_processed": sum(event_counts.values()),
+                "project_event_counts": event_counts,
             }
-
-            # Update project-specific bookmark
-            self.write_bookmark(
-                stream,
-                project_id,
-                {"start": singer.utils.strftime(last_extraction_time)},
-                total_event_counts[project_slug],
-            )
-
-            LOGGER.info(f"Updated bookmarks for project {project_slug}")
-
-        # Update global events bookmark with metadata
-        if last_extraction_time:
-            self.write_bookmark(
-                stream,
-                "start",
-                singer.utils.strftime(last_extraction_time),
-                {
-                    "total_projects": len(total_event_counts),
-                    "project_totals": total_event_counts,
-                },
-            )
-            LOGGER.info("Updated global bookmarks")
-
-        # Log final summary
-        total_issues = sum(p["total_issues"] for p in total_event_counts.values())
-        total_issue_events = sum(
-            p["total_issue_events"] for p in total_event_counts.values()
-        )
-        total_project_events = sum(
-            p["total_project_events"] for p in total_event_counts.values()
-        )
-        total_events = total_issue_events + total_project_events
-
-        LOGGER.info(
-            f"Events sync complete. Processed {total_issues} issues with "
-            f"{total_issue_events} issue events and {total_project_events} project events "
-            f"({total_events} total) across {len(total_event_counts)} projects"
-        )
-
-        # Log top issues by event count across all projects
-        all_issues = {}
-        for project_data in total_event_counts.values():
-            all_issues.update(project_data["issue_event_counts"])
-
-        if all_issues:
-            top_issues = sorted(all_issues.items(), key=lambda x: x[1], reverse=True)[
-                :5
-            ]
-            LOGGER.info(
-                "Top issues by event count: "
-                + ", ".join(
-                    f"Issue {issue_id} ({count} events)"
-                    for issue_id, count in top_issues
-                )
-            )
 
 
 class SentrySync:

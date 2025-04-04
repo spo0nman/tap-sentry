@@ -20,7 +20,9 @@ This tap requires a `config.json` file which specifies:
   "organization": "your-organization-slug",  // optional, defaults to "split-software"
   "rate_limit": 10,  // optional, default is 10 requests per second
   "sample_fraction": 0.1,  // optional, sample 10% of events
-  "max_events_per_project": 1000  // optional, limit to 1000 events per project
+  "max_events_per_project": 1000,  // optional, limit to 1000 events per project
+  "min_events_per_issue": 5,  // optional, ensure at least 5 events per issue
+  "max_events_per_issue": 100  // optional, limit to 100 events per issue
 }
 ```
 
@@ -37,6 +39,8 @@ To generate a Sentry API token, visit your Sentry organization settings and crea
 | rate_limit | No | 10 | Maximum number of API requests per second |
 | sample_fraction | No | None | Fraction of events to sample (0.0-1.0) |
 | max_events_per_project | No | None | Maximum number of events to fetch per project |
+| min_events_per_issue | No | 5 | Minimum number of events to sample per issue |
+| max_events_per_issue | No | 100 | Maximum number of events to sample per issue |
 | fetch_event_details | No | false | Whether to fetch detailed event data for each event |
 
 ## Usage
@@ -176,6 +180,16 @@ plugins:
           label: Max Events Per Project
           description: Maximum number of events to fetch per project
           value: null
+        - name: min_events_per_issue
+          kind: integer
+          label: Min Events Per Issue
+          description: Minimum number of events to sample per issue
+          value: 5
+        - name: max_events_per_issue
+          kind: integer
+          label: Max Events Per Issue
+          description: Maximum number of events to sample per issue
+          value: 100
         - name: fetch_event_details
           kind: boolean
           label: Fetch Event Details

@@ -39,6 +39,8 @@ class SentryClient:
         rate_limit=10,  # Default to 10 requests per second
         sample_fraction=None,  # Optional sampling fraction (0.0-1.0)
         max_events_per_project=None,  # Optional maximum events per project
+        min_events_per_issue=5,  # Minimum events to sample per issue
+        max_events_per_issue=100,  # Maximum events to sample per issue
         state={},
         projects=None,
         fetch_event_details=False,
@@ -62,6 +64,8 @@ class SentryClient:
             self._sample_fraction = sample_fraction
 
         self._max_events_per_project = max_events_per_project
+        self._min_events_per_issue = min_events_per_issue
+        self._max_events_per_issue = max_events_per_issue
         self._state = state
         self._projects = projects
         self.fetch_event_details = fetch_event_details
@@ -81,6 +85,16 @@ class SentryClient:
             LOGGER.info(
                 f"Event limit enabled: {self._max_events_per_project} events per project"
             )
+
+        if self._min_events_per_issue < 1:
+            raise ValueError("min_events_per_issue must be at least 1")
+        LOGGER.info(f"Minimum events per issue: {self._min_events_per_issue}")
+
+        if self._max_events_per_issue < self._min_events_per_issue:
+            raise ValueError(
+                "max_events_per_issue must be greater than or equal to min_events_per_issue"
+            )
+        LOGGER.info(f"Maximum events per issue: {self._max_events_per_issue}")
 
         LOGGER.debug(
             f"Initialized SentryClient with base URL: {url}, organization: {organization}, rate limit: {rate_limit}/s"
@@ -142,15 +156,55 @@ class SentryClient:
         # Apply sampling fraction if configured
         if self._sample_fraction is not None and self._sample_fraction < 1.0:
             import random
+            import hashlib
 
+            # Create a deterministic seed based on project slug and event IDs
+            # This ensures the same events are selected in each run
+            seed_data = project_slug or "default"
+
+            # Add event IDs to the seed data to ensure consistent sampling
+            # Sort the event IDs to ensure consistent ordering
+            event_ids = sorted(
+                [
+                    str(event.get("id") or event.get("eventID", ""))
+                    for event in sampled_events
+                ]
+            )
+            seed_data += "".join(event_ids)
+
+            # Create a hash of the seed data to use as the random seed
+            seed = int(hashlib.md5(seed_data.encode()).hexdigest(), 16) % (2**32)
+
+            # Set the random seed
+            random.seed(seed)
+
+            # Calculate sample size based on fraction
             sample_size = int(original_count * self._sample_fraction)
-            if sample_size < 1 and original_count > 0:
+
+            # Apply min/max event limits
+            if (
+                sample_size < self._min_events_per_issue
+                and original_count >= self._min_events_per_issue
+            ):
+                sample_size = self._min_events_per_issue
+                LOGGER.info(
+                    f"Adjusted sample size to minimum of {sample_size} events for project {project_slug}"
+                )
+            elif sample_size > self._max_events_per_issue:
+                sample_size = self._max_events_per_issue
+                LOGGER.info(
+                    f"Adjusted sample size to maximum of {sample_size} events for project {project_slug}"
+                )
+            elif sample_size < 1 and original_count > 0:
                 sample_size = 1  # Ensure at least one event if we have any
 
             LOGGER.info(
                 f"Sampling {sample_size} out of {original_count} events for project {project_slug} ({self._sample_fraction*100:.1f}%)"
             )
             sampled_events = random.sample(sampled_events, sample_size)
+
+            # Reset the random seed to avoid affecting other random operations
+            random.seed()
 
         return sampled_events
 
@@ -287,7 +341,7 @@ class SentryClient:
                 project_slug=project_slug,
                 event_id=event_id,
             )
-            LOGGER.info(f"Fetching event detail from: {self._base_url + path}")
+            LOGGER.debug(f"Fetching event detail from: {self._base_url + path}")
 
             response = self._get(path)
             if response.status_code == 200:
@@ -1290,6 +1344,13 @@ class SentrySync:
             processed_users = []
 
             try:
+                # Get the start bookmark for users
+                start_bookmark = singer.get_bookmark(self.state, stream, "start")
+                if start_bookmark:
+                    LOGGER.info(f"Starting user sync from bookmark: {start_bookmark}")
+                else:
+                    LOGGER.info("No start bookmark found, performing full sync")
+
                 users = await asyncio.get_event_loop().run_in_executor(
                     None, self.client.users, self.state
                 )
@@ -1308,16 +1369,22 @@ class SentrySync:
                         current_role = user.get("role")
                         current_projects = sorted(user.get("projects", []))
                         current_flags = user.get("flags", {})
+                        current_date_created = user.get("dateCreated")
 
                         previous_role = previous_state.get("role")
                         previous_projects = sorted(previous_state.get("projects", []))
                         previous_flags = previous_state.get("flags", {})
+                        previous_date_created = previous_state.get("dateCreated")
 
-                        # Only sync if any of the tracked fields have changed
+                        # Only sync if any of the tracked fields have changed or it's a new user
                         if (
                             previous_role != current_role
                             or previous_projects != current_projects
                             or previous_flags != current_flags
+                            or not previous_date_created
+                            or (
+                                start_bookmark and current_date_created > start_bookmark
+                            )
                         ):
                             singer.write_record(stream, user)
                             singer.metrics.record_counter(stream).increment()
@@ -1331,6 +1398,7 @@ class SentrySync:
                                     "role": current_role,
                                     "projects": current_projects,
                                     "flags": current_flags,
+                                    "dateCreated": current_date_created,
                                 },
                             )
 
@@ -1383,9 +1451,14 @@ class SentrySync:
                     self.state, stream, project_id, {}
                 ).get("start")
 
-                LOGGER.info(
-                    f"Fetching releases for project {project_slug} with bookmark: {project_bookmark}"
-                )
+                if project_bookmark:
+                    LOGGER.info(
+                        f"Starting release sync for project {project_slug} from bookmark: {project_bookmark}"
+                    )
+                else:
+                    LOGGER.info(
+                        f"No project bookmark found for {project_slug}, performing full sync"
+                    )
 
                 # Use the existing releases method in the client
                 releases = await asyncio.get_event_loop().run_in_executor(
@@ -1400,25 +1473,47 @@ class SentrySync:
                         if "project_slug" not in release:
                             release["project_slug"] = project_slug
 
-                        # Write the record
-                        processed_release = self.process_record(stream, release)
-                        singer.write_record(stream, processed_release)
-                        singer.metrics.record_counter(stream).increment()
-
-                        # Track processed release
                         release_version = release.get("version")
-                        if release_version:
-                            processed_releases.append(
-                                f"{project_slug}:{release_version}"
-                            )
+                        release_date = release.get("dateCreated")
 
-                        # Update release-specific bookmark
-                        self.state = singer.write_bookmark(
-                            self.state,
-                            stream,
-                            f"{project_id}:{release_version}",
-                            {"start": singer.utils.strftime(extraction_time)},
+                        # Check if we need to sync this release
+                        release_bookmark = singer.get_bookmark(
+                            self.state, stream, f"{project_id}:{release_version}", {}
+                        ).get("start")
+
+                        should_sync = (
+                            not release_bookmark  # New release
+                            or (
+                                project_bookmark and release_date > project_bookmark
+                            )  # Updated since last sync
+                            or (
+                                release_bookmark and release_date > release_bookmark
+                            )  # Updated since last sync for this release
                         )
+
+                        if should_sync:
+                            # Write the record
+                            processed_release = self.process_record(stream, release)
+                            singer.write_record(stream, processed_release)
+                            singer.metrics.record_counter(stream).increment()
+
+                            # Track processed release
+                            if release_version:
+                                processed_releases.append(
+                                    f"{project_slug}:{release_version}"
+                                )
+
+                            # Update release-specific bookmark
+                            self.state = singer.write_bookmark(
+                                self.state,
+                                stream,
+                                f"{project_id}:{release_version}",
+                                {"start": singer.utils.strftime(extraction_time)},
+                            )
+                        else:
+                            LOGGER.debug(
+                                f"Skipping release {release_version} for project {project_slug} - no changes"
+                            )
 
                     # Update project-specific bookmark
                     self.state = singer.write_bookmark(

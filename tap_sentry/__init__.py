@@ -99,6 +99,10 @@ def sync(config, state, catalog):
     # Get sampling parameters
     sample_fraction = config.get("sample_fraction")
     max_events_per_project = config.get("max_events_per_project")
+    min_events_per_issue = config.get("min_events_per_issue", 5)  # Default to 5 events
+    max_events_per_issue = config.get(
+        "max_events_per_issue", 100
+    )  # Default to 100 events
 
     # Create client with custom base_url and organization
     client = SentryClient(
@@ -108,6 +112,8 @@ def sync(config, state, catalog):
         rate_limit=rate_limit,
         sample_fraction=sample_fraction,
         max_events_per_project=max_events_per_project,
+        min_events_per_issue=min_events_per_issue,
+        max_events_per_issue=max_events_per_issue,
     )
 
     # Log configuration for debugging
@@ -119,6 +125,8 @@ def sync(config, state, catalog):
         LOGGER.info(f"Event sampling enabled with fraction: {sample_fraction}")
     if max_events_per_project is not None:
         LOGGER.info(f"Event limit enabled: {max_events_per_project} events per project")
+    LOGGER.info(f"Minimum events per issue: {min_events_per_issue}")
+    LOGGER.info(f"Maximum events per issue: {max_events_per_issue}")
 
     # Pass the config to SentrySync
     sync_instance = SentrySync(client, state, config)

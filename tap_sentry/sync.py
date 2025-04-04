@@ -1289,6 +1289,31 @@ class SentrySync:
         processed_releases = []
         filtered_count = 0
 
+        # Get the global start_date to use as fallback filter
+        global_start_date = singer.get_bookmark(self.state, stream, "start", None)
+        if not global_start_date and "bookmarks" in self.state:
+            # Try to get start_date from any stream as fallback
+            for stream_name, bookmarks in self.state.get("bookmarks", {}).items():
+                if "start" in bookmarks:
+                    global_start_date = bookmarks["start"]
+                    break
+
+        # If still no global date, check config
+        if (
+            not global_start_date
+            and hasattr(self, "_config")
+            and "start_date" in self._config
+        ):
+            global_start_date = self._config["start_date"]
+            LOGGER.info(
+                f"Using config start_date as fallback filter: {global_start_date}"
+            )
+
+        if global_start_date:
+            LOGGER.info(
+                f"Using global start date as fallback filter: {global_start_date}"
+            )
+
         # Use existing projects property
         if self.projects:
             for project in self.projects:
@@ -1306,10 +1331,17 @@ class SentrySync:
                     LOGGER.info(
                         f"Starting release sync for project {project_slug} from bookmark: {project_bookmark}"
                     )
+                    filter_date = project_bookmark
+                elif global_start_date:
+                    LOGGER.info(
+                        f"No project bookmark found for {project_slug}, using global start date: {global_start_date}"
+                    )
+                    filter_date = global_start_date
                 else:
                     LOGGER.info(
-                        f"No project bookmark found for {project_slug}, performing full sync"
+                        f"No project bookmark or global start date found for {project_slug}, performing full sync"
                     )
+                    filter_date = None
 
                 # Use the existing releases method in the client
                 releases = await asyncio.get_event_loop().run_in_executor(
@@ -1321,13 +1353,13 @@ class SentrySync:
                     original_count = len(releases)
 
                     # Client-side filtering based on dateCreated
-                    if project_bookmark:
+                    if filter_date:
                         # Filter releases by date
                         filtered_releases = []
                         for release in releases:
                             if release.get("dateCreated"):
                                 release_date = parser.parse(release.get("dateCreated"))
-                                if release_date >= parser.parse(project_bookmark):
+                                if release_date >= parser.parse(filter_date):
                                     filtered_releases.append(release)
                             else:
                                 # Include releases without dateCreated for safety
@@ -1335,7 +1367,7 @@ class SentrySync:
 
                         filtered_count += original_count - len(filtered_releases)
                         LOGGER.info(
-                            f"Filtered out {original_count - len(filtered_releases)} releases older than bookmark"
+                            f"Filtered out {original_count - len(filtered_releases)} releases older than {filter_date}"
                         )
                         releases = filtered_releases
 

@@ -3,6 +3,7 @@ import urllib
 import singer
 import requests
 from singer.bookmarks import get_bookmark
+import json
 
 LOGGER = singer.get_logger()
 
@@ -1733,6 +1734,40 @@ class SentrySync:
         return self.state
 
 
+def format_state_summary(state):
+    """Format state data into a readable summary."""
+    summary = {
+        "Sync Summary": {
+            "Last Sync": state.get("metadata", {}).get("last_sync"),
+            "Sync Type": state.get("metadata", {}).get("sync_type"),
+            "Streams Synced": state.get("metadata", {}).get("streams_synced", []),
+            "Projects Processed": len(
+                state.get("metadata", {}).get("projects_processed", [])
+            ),
+            "Total Events Processed": state.get("metadata", {}).get(
+                "events_processed", 0
+            ),
+            "Total Issues Processed": state.get("metadata", {}).get(
+                "issues_processed", 0
+            ),
+        },
+        "Bookmarks": {
+            stream: {"start": bookmark.get("start", "Not set")}
+            for stream, bookmark in state.get("bookmarks", {}).items()
+        },
+    }
+
+    # Add issue event counts if available
+    issue_counts = state.get("metadata", {}).get("issue_event_counts", {})
+    if issue_counts:
+        top_issues = sorted(issue_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        summary["Top Issues by Event Count"] = {
+            issue_id: count for issue_id, count in top_issues
+        }
+
+    return summary
+
+
 def main():
     """Main function to run the tap."""
     # Import utils at the top of the file
@@ -1779,36 +1814,13 @@ def main():
         LOGGER.error(f"Error during sync: {str(e)}")
         raise
 
-    # Write final state
+    # Format and print state summary instead of writing raw state
+    state_summary = format_state_summary(state)
+    LOGGER.info("=== Final State Summary ===")
+    LOGGER.info(json.dumps(state_summary, indent=2))
+
+    # Still write the state file for persistence
     singer.write_state(state)
-
-    # Log final summary
-    LOGGER.info("=== Final Sync Summary ===")
-    LOGGER.info(f"Last sync: {state.get('metadata', {}).get('last_sync')}")
-    LOGGER.info(f"Sync type: {state.get('metadata', {}).get('sync_type')}")
-    LOGGER.info(
-        f"Streams synced: {state.get('metadata', {}).get('streams_synced', [])}"
-    )
-    LOGGER.info(
-        f"Projects processed: {len(state.get('metadata', {}).get('projects_processed', []))}"
-    )
-    LOGGER.info(
-        f"Total events processed: {state.get('metadata', {}).get('events_processed', 0)}"
-    )
-    LOGGER.info(
-        f"Total issues processed: {state.get('metadata', {}).get('issues_processed', 0)}"
-    )
-
-    # Log top issues by event count
-    issue_counts = state.get("metadata", {}).get("issue_event_counts", {})
-    if issue_counts:
-        top_issues = sorted(issue_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-        LOGGER.info(
-            "Top issues by event count: "
-            + ", ".join(
-                f"Issue {issue_id} ({count} events)" for issue_id, count in top_issues
-            )
-        )
 
 
 if __name__ == "__main__":

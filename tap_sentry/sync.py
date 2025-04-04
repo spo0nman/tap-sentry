@@ -4,6 +4,7 @@ import singer
 import requests
 from singer.bookmarks import get_bookmark
 import json
+from dateutil import parser
 
 LOGGER = singer.get_logger()
 
@@ -1286,6 +1287,7 @@ class SentrySync:
 
         # Track processed releases for metadata
         processed_releases = []
+        filtered_count = 0
 
         # Use existing projects property
         if self.projects:
@@ -1315,6 +1317,32 @@ class SentrySync:
                 )
 
                 if releases:
+                    # Track the original count for logging purposes
+                    original_count = len(releases)
+
+                    # Client-side filtering based on dateCreated
+                    if project_bookmark:
+                        # Filter releases by date
+                        filtered_releases = []
+                        for release in releases:
+                            if release.get("dateCreated"):
+                                release_date = parser.parse(release.get("dateCreated"))
+                                if release_date >= parser.parse(project_bookmark):
+                                    filtered_releases.append(release)
+                            else:
+                                # Include releases without dateCreated for safety
+                                filtered_releases.append(release)
+
+                        filtered_count += original_count - len(filtered_releases)
+                        LOGGER.info(
+                            f"Filtered out {original_count - len(filtered_releases)} releases older than bookmark"
+                        )
+                        releases = filtered_releases
+
+                    LOGGER.info(
+                        f"Processing {len(releases)} releases for project {project_slug}"
+                    )
+
                     for release in releases:
                         # Add project context if not present
                         if "project_id" not in release:
@@ -1386,6 +1414,7 @@ class SentrySync:
                 if self.projects
                 else [],
                 "releases_processed": len(processed_releases),
+                "releases_filtered": filtered_count,
             }
         else:
             LOGGER.warning("No projects found for fetching releases")
